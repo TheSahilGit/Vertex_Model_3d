@@ -30,14 +30,18 @@ flag_cross_section = false;        % also make the cross-section video/plot
 cut_axis  = 'y';                    % cross-section cutting axis: 'x' | 'y' | 'z'
 cut_value = 0.0;                    % cross-section cutting plane offset
 
-% Which saved snapshots go into the video, expressed in terms of the
-% SAVED iteration numbers (the it_dumps cadence), not raw simulation
-% steps and not a plain index into the file list. A range matching
-% exactly one saved snapshot (e.g. start=end=5000) still works: it
-% just produces a 1-frame "video", i.e. a single plot.
-video_it_start  = -inf;   % first saved iteration to include (-inf = from the very first)
-video_it_end    = inf;    % last saved iteration to include  ( inf = up to the very last)
-video_it_stride = 1;      % use every Nth saved snapshot in that range (1 = all of them)
+% Which saved snapshots go into the video, given directly as an array
+% of SAVED iteration numbers (the it_dumps cadence) -- not raw
+% simulation steps, not a plain index into the file list. A scalar
+% (a single iteration) works exactly like a 1-element array: the same
+% code path still "makes the video", which in that case is just a
+% single plot. Leave empty ([]) to use every available snapshot.
+%
+%   video_its = 1000:100:5000;   % that whole range
+%   video_its = 5000;            % just one snapshot -> a single plot
+%   video_its = [];               % every saved snapshot
+
+video_its = [5000];
 
 video_fps = 8;                     % frames per second for saved videos
 video_dir = fullfile(project_root, 'videos');
@@ -61,9 +65,8 @@ meta = read_mesh_meta(fullfile(data_dir, 'mesh_meta.txt'));
 fprintf('Found %d snapshots (it = %d .. %d). R_apical=%.3g  R_basal=%.3g\n', ...
         numel(files), min(its), max(its), meta.R_apical, meta.R_basal);
 
-[video_files, video_its] = select_snapshots(files, its, video_it_start, video_it_end, video_it_stride);
-fprintf('Selected %d frame(s) (it = %d .. %d, stride %d)\n', ...
-        numel(video_files), min(video_its), max(video_its), video_it_stride);
+[video_files, video_its_used] = select_snapshots(files, its, video_its);
+fprintf('Selected %d frame(s): it = %s\n', numel(video_files), mat2str(video_its_used));
 
 if ~exist(video_dir, 'dir')
     mkdir(video_dir);

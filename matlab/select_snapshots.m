@@ -1,34 +1,41 @@
-function [files_out, its_out] = select_snapshots(files, its, it_start, it_end, it_stride)
-% SELECT_SNAPSHOTS  Filter/subsample a (files, its) list (as returned
-% by list_snapshots.m) down to an inclusive iteration range and a
-% stride, all expressed in terms of the SAVED snapshot iteration
-% numbers (i.e. the it_dumps cadence from para_Simulation.dat), not
-% raw simulation steps and not a plain index into the file list.
+function [files_out, its_out] = select_snapshots(files, its, wanted_its)
+% SELECT_SNAPSHOTS  Pick out the snapshots at the requested SAVED
+% iteration numbers (as returned by list_snapshots.m), e.g.:
 %
-%   [f,i] = select_snapshots(files, its, 0, inf, 1)     % every saved snapshot
-%   [f,i] = select_snapshots(files, its, 1000, 4000, 2) % every OTHER saved
-%                                                        % snapshot with
-%                                                        % 1000 <= it <= 4000
+%   select_snapshots(files, its, 1000:100:5000)   % that whole range
+%   select_snapshots(files, its, 5000)            % a single iteration
+%                                                  % (a scalar works
+%                                                  % exactly like a
+%                                                  % 1-element array)
+%   select_snapshots(files, its)                  % every available
+%                                                  % snapshot (wanted_its
+%                                                  % omitted/empty)
 %
-% it_start/it_end may be -inf/inf to leave that end of the range open.
-% it_stride subsamples the (already range-filtered) list, e.g.
-% it_stride=1 keeps every entry, it_stride=3 keeps every third one.
+% Each requested iteration is matched to the nearest AVAILABLE one
+% (only some iterations were actually saved, per it_dumps); duplicate
+% matches are dropped, and the result is always sorted into
+% chronological order regardless of the input order, since that's the
+% order a video should play in.
 
-if nargin < 3 || isempty(it_start),  it_start  = -inf; end
-if nargin < 4 || isempty(it_end),    it_end    = inf;  end
-if nargin < 5 || isempty(it_stride), it_stride = 1;    end
-if it_stride < 1
-    error('select_snapshots:stride', 'it_stride must be >= 1');
+if nargin < 3 || isempty(wanted_its)
+    [its_out, order] = sort(its);
+    files_out = files(order);
+    return;
 end
 
-mask = (its >= it_start) & (its <= it_end);
-files = files(mask);
-its   = its(mask);
+wanted_its = wanted_its(:)';  % row vector, whatever shape/orientation came in
 
-[its_sorted, order] = sort(its);
-files = files(order);
+idx = zeros(size(wanted_its));
+for k = 1:numel(wanted_its)
+    [d, idx(k)] = min(abs(its - wanted_its(k)));
+    if d > 0
+        fprintf('select_snapshots: requested it=%g not saved, using nearest available it=%g instead.\n', ...
+                wanted_its(k), its(idx(k)));
+    end
+end
+idx = unique(idx, 'stable');
 
-idx = 1:round(it_stride):numel(files);
-files_out = files(idx);
-its_out   = its_sorted(idx);
+its_sel = its(idx);
+[its_out, order] = sort(its_sel);
+files_out = files(idx(order));
 end
