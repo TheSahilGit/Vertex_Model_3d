@@ -1,0 +1,6 @@
+build/
+data/
+vertex3d
+*.o
+*.mod
+*.swp

@@ -1,0 +1,82 @@
+! =====================================================================
+! para_Simulation.dat
+! Input parameters for the 3D Vertex Model on a spherical shell.
+! Read as a Fortran NAMELIST by mod_parameters.f90 (namelist /SIMPARAMS/).
+!
+! Geometry
+! --------
+! N_subdivision : geodesic subdivision level L of the base icosahedron.
+!                 Number of cells (apical shell)      Ncell = 10*4^L + 2
+!                 Number of vertex "columns"           Nvert = 20*4^L
+!                 (each column carries one apical + one basal vertex)
+!                 L=0 -> 12 cells (all pentagons, exact "buckyball" seed)
+!                 L=1 -> 42 cells, L=2 -> 162, L=3 -> 642, L=4 -> 2562 ...
+! R_apical      : radius of the outer (apical) shell surface
+! R_basal       : radius of the inner (basal) shell surface. Must be < R_apical.
+!                 The shell is HOLLOW: nothing is modelled at r < R_basal.
+!
+! Energy functional  E = Sum_cells [ (K_V/2)(V-V0)^2 + (K_A/2)(Aapi-A0)^2
+!                                    + (K_P/2) Papi^2 ]
+!                      + Sum_edges  Lambda_line * S_lateral(edge)
+! (V = cell volume, Aapi/Papi = apical face area/perimeter, S_lateral =
+!  area of the lateral cell-cell interface associated with an apical edge)
+! -----------------------------------------------------------------------
+! K_V, K_A, K_P, Lambda_line : energy moduli (see Force.f90 for derivation)
+! V0_scale, A0_scale         : target V0 = V0_scale * (initial cell volume)
+!                              target A0 = A0_scale * (initial apical area)
+!                              (=1 means the initial geodesic mesh is the
+!                               unstrained reference shape)
+!
+! Dynamics (overdamped Langevin,  zeta * dr/dt = -dE/dr + noise)
+! ----------------------------------------------------------------
+! zeta_friction : friction coefficient
+! kBT           : thermal noise amplitude (0 = pure gradient descent)
+! dt            : integration time step
+! n_steps       : total number of time steps to run
+! it_dumps      : dump a binary snapshot to data/ every it_dumps steps
+!
+! Topology (junctional rearrangements)
+! -------------------------------------
+! L_T1_threshold     : apical edges shorter than this trigger a T1 attempt
+! A_T2_threshold     : triangular cells with apical area below this collapse (T2)
+! it_topology_check  : how often (in steps) to scan for T1/T2 events
+! division_enable    : switch cell division on/off
+! it_division_check  : how often (in steps) to scan for divisions
+! V_division_threshold : a cell divides when V > V_division_threshold * V0
+!
+! random_seed            : seed for the Langevin noise / any stochastic choices
+! capacity_growth_factor : the cell/vertex arrays are pre-allocated at
+!                          this factor times the initial cell/vertex
+!                          count, to leave room for cell divisions to
+!                          grow the tissue. Raise it if you see
+!                          "capacity exceeded" warnings during a run
+!                          with many divisions.
+! =====================================================================
+&SIMPARAMS
+  N_subdivision         = 3
+  R_apical              = 10.0d0
+  R_basal               = 9.0d0
+
+  K_V                   = 1.0d0
+  K_A                   = 1.0d0
+  K_P                   = 0.05d0
+  Lambda_line           = 0.05d0
+  V0_scale              = 1.0d0
+  A0_scale              = 1.0d0
+
+  zeta_friction         = 1.0d0
+  kBT                   = 0.0d0
+  dt                    = 1.0d-3
+  n_steps               = 5000
+  it_dumps              = 100
+
+  L_T1_threshold        = 0.05d0
+  A_T2_threshold        = 0.01d0
+  it_topology_check     = 20
+  division_enable       = .true.
+  it_division_check     = 500
+  V_division_threshold  = 1.4d0
+
+  random_seed            = 12345
+  capacity_growth_factor = 3.0d0
+/

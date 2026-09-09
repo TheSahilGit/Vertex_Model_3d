@@ -1,0 +1,81 @@
+module mod_parameters
+  ! Reads para_Simulation.dat (Fortran NAMELIST) and holds all global
+  ! simulation parameters. See para_Simulation.dat for the meaning of
+  ! every entry.
+  use mod_kinds
+  implicit none
+
+  integer(i4) :: N_subdivision
+  real(dp)    :: R_apical, R_basal
+
+  real(dp)    :: K_V, K_A, K_P, Lambda_line
+  real(dp)    :: V0_scale, A0_scale
+
+  real(dp)    :: zeta_friction, kBT, dt
+  integer(i4) :: n_steps, it_dumps
+
+  real(dp)    :: L_T1_threshold, A_T2_threshold
+  integer(i4) :: it_topology_check
+  logical     :: division_enable
+  integer(i4) :: it_division_check
+  real(dp)    :: V_division_threshold
+
+  integer(i4) :: random_seed
+  real(dp)    :: capacity_growth_factor
+
+contains
+
+  subroutine read_parameters(fname)
+    character(len=*), intent(in) :: fname
+    integer :: iun, ios
+    namelist /SIMPARAMS/ N_subdivision, R_apical, R_basal, &
+         K_V, K_A, K_P, Lambda_line, V0_scale, A0_scale, &
+         zeta_friction, kBT, dt, n_steps, it_dumps, &
+         L_T1_threshold, A_T2_threshold, it_topology_check, &
+         division_enable, it_division_check, V_division_threshold, &
+         random_seed, capacity_growth_factor
+
+    ! default for the one optional/newer key, in case an older
+    ! para_Simulation.dat without it is supplied
+    capacity_growth_factor = 3.0_dp
+
+    open(newunit=iun, file=trim(fname), status='old', action='read', iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: cannot open parameter file: ', trim(fname)
+      stop 1
+    end if
+    read(iun, nml=SIMPARAMS, iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: could not parse &SIMPARAMS namelist in ', trim(fname)
+      stop 1
+    end if
+    close(iun)
+
+    ! ---- sanity checks on the parameters themselves ----
+    if (N_subdivision < 0 .or. N_subdivision > 6) then
+      write(*,*) 'ERROR: N_subdivision out of sane range [0,6]: ', N_subdivision
+      stop 1
+    end if
+    if (R_basal <= 0.0_dp .or. R_apical <= R_basal) then
+      write(*,*) 'ERROR: need 0 < R_basal < R_apical. Got:', R_basal, R_apical
+      stop 1
+    end if
+    if (dt <= 0.0_dp .or. n_steps <= 0) then
+      write(*,*) 'ERROR: dt and n_steps must be positive.'
+      stop 1
+    end if
+    if (zeta_friction <= 0.0_dp) then
+      write(*,*) 'ERROR: zeta_friction must be positive.'
+      stop 1
+    end if
+    if (capacity_growth_factor < 1.0_dp) then
+      write(*,*) 'ERROR: capacity_growth_factor must be >= 1.0.'
+      stop 1
+    end if
+
+    write(*,'(A)') '--- parameters read successfully ---'
+    write(*,nml=SIMPARAMS)
+    write(*,'(A)') '-------------------------------------'
+  end subroutine read_parameters
+
+end module mod_parameters

@@ -1,0 +1,30 @@
+I want you to write a fortran 90 code with matlab plotting of a 3d vertex model code. 
+But the 3d vertex model is a specific model. Following are the instructions. 
+  1. The initialisation is cells (polyhedron) on top of a sphere. 
+  2. The sphere is hollow, so there are no cells inside, only surface cells. 
+  3. Define standard energy functional with standard terms. 
+  4. Minimize it and evolve with overdamped Langevin equation. 
+  5. Introduce appropiate junctional rearrangements (counterparts of T1 and T2 and cell division). 
+
+Write in modular form with files like :
+  1. para_Simulation.dat (simulation parameter inputs).
+  2. main.f90
+  3. Force.f90
+  4. T1_transition.f90
+  5. T2_transion.f90
+  6. Cell_Division.f90
+etc. (add if needed). 
+
+Data writing:
+  1. Write inside a directory data/ 
+  2. Write temporal data at given it_dumps in binary (unformatted form). 
+
+Plotting should be in matlab, inside directory: Analysis_Code_Matlab/
+About plotting:
+  1. Read those binary (unformatted data). 
+  2. Standard plot with the whole tissue. 
+  3. Cross section of it where I can see the ring and hollow inside alongwith
+      the cell shapes. 
+  
+Write carefully and take your time. Do sanity checks and all. 
+  
