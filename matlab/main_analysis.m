@@ -18,6 +18,8 @@
 % working directory, which e.g. MATLAB's run() changes to the script's
 % own folder) so it works regardless of how/from where it is invoked.
 
+clear; clc; close all; 
+
 this_dir     = fileparts(mfilename('fullpath'));  % .../matlab
 project_root = fileparts(this_dir);               % one level up
 data_dir     = fullfile(project_root, 'data');
@@ -41,7 +43,7 @@ cut_value = 0.0;                    % cross-section cutting plane offset
 %   video_its = 5000;            % just one snapshot -> a single plot
 %   video_its = [];               % every saved snapshot
 
-video_its = [5000];
+video_its = 1000:100:10000;
 
 video_fps = 8;                     % frames per second for saved videos
 video_dir = fullfile(project_root, 'videos');

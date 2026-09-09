@@ -1,6 +1,6 @@
 module mod_parameters
-  ! Reads para_Simulation.dat (Fortran NAMELIST) and holds all global
-  ! simulation parameters. See para_Simulation.dat for the meaning of
+  ! Reads para.in (Fortran NAMELIST) and holds all global
+  ! simulation parameters. See para.in for the meaning of
   ! every entry.
   use mod_kinds
   implicit none
@@ -36,7 +36,7 @@ contains
          random_seed, capacity_growth_factor
 
     ! default for the one optional/newer key, in case an older
-    ! para_Simulation.dat without it is supplied
+    ! para.in without it is supplied
     capacity_growth_factor = 3.0_dp
 
     open(newunit=iun, file=trim(fname), status='old', action='read', iostat=ios)

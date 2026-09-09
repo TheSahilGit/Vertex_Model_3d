@@ -68,7 +68,7 @@ and division events, aborting the run if either ever fails.
 ## Layout
 
 ```
-para_Simulation.dat   simulation parameters (Fortran NAMELIST, heavily commented)
+para.in               simulation parameters (Fortran NAMELIST, heavily commented)
 src/                  Fortran 90 source (see Makefile for the compile order)
   mod_kinds.f90         precision kinds
   mod_parameters.f90    parameter file I/O
@@ -93,7 +93,7 @@ matlab/               Matlab analysis & plotting (see below)
 
 ```sh
 make          # builds ./vertex3d
-./vertex3d    # reads para_Simulation.dat, writes data/*.dat
+./vertex3d    # reads para.in, writes data/*.dat
 ```
 
 `make clean` removes `build/` and the executable; `make distclean` also
@@ -166,7 +166,7 @@ video_fps = 8;
 ```
 
 `video_its` is an array given directly in terms of the **saved
-iteration numbers** (the `it_dumps` cadence from `para_Simulation.dat`,
+iteration numbers** (the `it_dumps` cadence from `para.in`,
 not raw simulation steps or a plain file-list index) — e.g.
 `video_its = 1000:100:5000`. A scalar, e.g. `video_its = 5000`, works
 exactly like a 1-element array: the same code path still "makes the

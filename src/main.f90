@@ -1,6 +1,6 @@
 program main
   ! 3D Vertex Model on a hollow spherical shell.
-  ! See README.md for the full model description; para_Simulation.dat
+  ! See README.md for the full model description; para.in
   ! for run parameters; and the header comments of Force.f90,
   ! T1_transition.f90, T2_transition.f90 and Cell_Division.f90 for the
   ! derivation of the energy terms and the topological-rearrangement
@@ -27,7 +27,7 @@ program main
   write(*,'(A)') ' 3D Vertex Model on a hollow spherical shell'
   write(*,'(A)') '===================================================='
 
-  call read_parameters('para_Simulation.dat')
+  call read_parameters('para.in')
 
   ! ---------------------------------------------------------------
   ! Self-tests: run BEFORE building the real mesh (they use their own
