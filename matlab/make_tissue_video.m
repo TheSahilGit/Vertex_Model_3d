@@ -3,7 +3,14 @@ function make_tissue_video(files, colorby, outfile, fps)
 % of filenames, e.g. from list_snapshots.m/select_snapshots.m),
 % rendering the whole-tissue view (plot_tissue_3d.m) coloured by
 % COLORBY ('nsides'|'volume'|'area'), and save the result as a video
-% at OUTFILE.
+% at OUTFILE. One figure is used for the whole run (reused every
+% frame, left open on the last frame when done so you can look at it --
+% close it yourself when you're done, or before calling this again).
+%
+% FILES may be a single filename (in a 1x1 cell array, e.g. from
+% select_snapshots.m with a range that matches exactly one saved
+% snapshot): the same code path runs, writing a 1-frame video -- which
+% is, in effect, just that one plot, saved to OUTFILE like any other.
 %
 %   make_tissue_video(files, 'nsides', 'videos/tissue_nsides.avi', 8)
 %
@@ -43,7 +50,11 @@ if cmax <= cmin
     cmax = cmin + 1;
 end
 
-fig = figure('Color', 'w', 'Visible', 'off', 'Resize', 'off', ...
+% No explicit 'Visible' here: this inherits whatever the caller's
+% current default is (normally 'on', so you see one figure window
+% update frame-by-frame as the video is built; scripts that want this
+% headless can set groot's DefaultFigureVisible to 'off' beforehand).
+fig = figure('Color', 'w', 'Resize', 'off', ...
              'Units', 'pixels', 'Position', [100 100 FRAME_W FRAME_H]);
 
 v = VideoWriter(outfile, 'Motion JPEG AVI');
@@ -53,8 +64,11 @@ open(v);
 
 for k = 1:numel(Sall)
     plot_tissue_3d(Sall{k}, colorby, 'Figure', fig, 'CLim', [cmin cmax]);
+    % Re-pin only the SIZE every frame (defensively) -- never the
+    % on-screen location, which is left free for you to drag the
+    % window around (e.g. to another monitor) while it renders.
     fig.Units = 'pixels';
-    fig.Position = [100 100 FRAME_W FRAME_H];  % re-pin every frame, defensively
+    fig.Position(3:4) = [FRAME_W FRAME_H];
     drawnow;
 
     img = getframe(fig).cdata;
@@ -69,6 +83,5 @@ for k = 1:numel(Sall)
 end
 
 close(v);
-close(fig);
 fprintf('make_tissue_video [%s]: wrote %s\n', colorby, outfile);
 end
