@@ -1,4 +1,4 @@
-function fig = plot_cross_section(S, cutaxis, cutvalue)
+function fig = plot_cross_section(S, cutaxis, cutvalue, varargin)
 % PLOT_CROSS_SECTION  Cutaway view showing the hollow interior, the
 % ring (shell) cross-section, and the individual cell shapes.
 %
@@ -6,19 +6,29 @@ function fig = plot_cross_section(S, cutaxis, cutvalue)
 % centre is used to keep only the cells on one side of it (a "cutaway
 % hemisphere"), so their apical AND basal faces are both rendered,
 % making the shell thickness and the hollow interior directly visible.
-% Two reference circles (radius R_apical and R_basal, the exact
-% intersection of the two shells with the cutting plane) are drawn
-% flat in that plane, filled as an annulus, to unambiguously mark the
-% ring and the hollow interior even where no cell happens to sit
-% exactly on the plane.
+% A reference disk (radius R_basal, the exact intersection of the
+% basal shell with the cutting plane) is drawn flat in that plane to
+% unambiguously mark the hollow interior even where no cell happens to
+% sit exactly on the plane.
 %
 %   plot_cross_section(S)                  % cut at y = 0
 %   plot_cross_section(S, 'z', 2.0)        % cut at z = 2.0
+%   plot_cross_section(S, 'y', 0, 'Figure', fig)
+%       draw into an existing figure (cleared first) instead of
+%       creating a new one -- used by make_cross_section_video.m for a
+%       constant window/frame size across a whole video.
 %
 % S is a struct from read_vertex_snapshot.m.
 
 if nargin < 2 || isempty(cutaxis),  cutaxis  = 'y'; end
 if nargin < 3 || isempty(cutvalue), cutvalue = 0.0; end
+p = inputParser;
+p.addParameter('Figure', []);
+p.parse(varargin{:});
+fig_in = p.Results.Figure;
+
+FONT_SIZE  = 26;  % ~2.5x the MATLAB default (10), per user request
+TITLE_SIZE = 28;
 
 switch lower(cutaxis)
     case 'x', axcol = 1;
@@ -39,7 +49,13 @@ for k = 1:size(F, 1)
 end
 Fk = F(keep, :);
 
-fig = figure('Color', 'w');
+if isempty(fig_in)
+    fig = figure('Color', 'w');
+else
+    fig = fig_in;
+    figure(fig);
+    clf(fig);
+end
 hold on
 
 % ---- flat reference disk at the basal radius, coloured white, in the
@@ -85,10 +101,12 @@ switch axcol
     case 3, view(35, 75);    % z-cut:  kept z<=cutvalue, cut normal +z (viewed from above)
 end
 
-title(sprintf('Cross-section (%s = %.3g) at step %d  (t = %.4g)', ...
-      cutaxis, cutvalue, S.it, S.time));
+set(gca, 'FontSize', FONT_SIZE);
+% title(sprintf('Cross-section (%s = %.3g) at step %d  (t = %.4g)', ...
+%       cutaxis, cutvalue, S.it, S.time), 'FontSize', TITLE_SIZE); %#ok<UNRCH>
 legend([h_api, h_bas], {'apical (outer) faces', 'basal (inner) faces'}, ...
-       'Location', 'southoutside', 'Orientation', 'horizontal');
+       'Location', 'southoutside', 'Orientation', 'horizontal', ...
+       'FontSize', FONT_SIZE);
 end
 
 %==========================================================================

@@ -1,4 +1,4 @@
-function fig = plot_tissue_3d(S, colorby)
+function fig = plot_tissue_3d(S, colorby, varargin)
 % PLOT_TISSUE_3D  Standard whole-tissue plot: every alive cell's apical
 % face, rendered as a shaded polygon on the outer shell.
 %
@@ -7,30 +7,41 @@ function fig = plot_tissue_3d(S, colorby)
 %   plot_tissue_3d(S, 'area')      % color by Aapi_last/A0 - 1
 %   fig = plot_tissue_3d(...)      % returns the figure handle
 %
+%   plot_tissue_3d(..., 'Figure', fig, 'CLim', [cmin cmax])
+%       Draw into an existing figure (cleared first) instead of
+%       creating a new one, with an explicit, fixed colour range
+%       instead of auto-scaling to this one frame's data. Used by
+%       make_tissue_video.m so a whole video has a constant window
+%       size (required by VideoWriter) and a constant, comparable
+%       colour scale across frames.
+%
 % S is a struct from read_vertex_snapshot.m.
 
-if nargin < 2
+if nargin < 2 || isempty(colorby)
     colorby = 'nsides';
 end
+p = inputParser;
+p.addParameter('Figure', []);
+p.addParameter('CLim', []);
+p.parse(varargin{:});
+fig_in  = p.Results.Figure;
+clim_in = p.Results.CLim;
+
+FONT_SIZE   = 26;  % ~2.5x the MATLAB default (10), per user request
+TITLE_SIZE  = 30;
 
 idx = find(S.cell_alive);
 F = cell_faces_matrix(S);
+[cval, cblabel] = tissue_color_values(S, colorby);
 
-switch lower(colorby)
-    case 'nsides'
-        cval = S.cell_n(idx);
-        cblabel = 'number of sides';
-    case 'volume'
-        cval = S.cell_Vlast(idx) ./ max(S.cell_V0(idx), eps) - 1;
-        cblabel = 'volume strain  (V/V_0 - 1)';
-    case 'area'
-        cval = S.cell_Alast(idx) ./ max(S.cell_A0(idx), eps) - 1;
-        cblabel = 'apical area strain  (A/A_0 - 1)';
-    otherwise
-        error('plot_tissue_3d:colorby', 'unknown colorby option "%s"', colorby);
+if isempty(fig_in)
+    fig = figure('Color', 'w');
+else
+    fig = fig_in;
+    figure(fig);
+    clf(fig);
 end
 
-fig = figure('Color', 'w');
 patch('Faces', F, 'Vertices', S.r_api, ...
       'FaceVertexCData', cval, 'FaceColor', 'flat', ...
       'EdgeColor', [0.15 0.15 0.15], 'LineWidth', 0.5);
@@ -38,7 +49,21 @@ patch('Faces', F, 'Vertices', S.r_api, ...
 axis equal vis3d off
 view(35, 20)
 camlight('headlight'); lighting gouraud; material dull
-colormap(parula); cb = colorbar; cb.Label.String = cblabel;
-title(sprintf('Tissue at step %d  (t = %.4g),  N_{cell} = %d', ...
-      S.it, S.time, numel(idx)));
+colormap(parula)
+
+if isempty(clim_in)
+    if max(cval) > min(cval)
+        clim([min(cval), max(cval)]);
+    end
+else
+    clim(clim_in);
+end
+
+cb = colorbar;
+cb.Label.String = cblabel;
+cb.FontSize = FONT_SIZE;
+
+set(gca, 'FontSize', FONT_SIZE);
+% title(sprintf('Tissue at step %d  (t = %.4g),  N_{cell} = %d', ...
+%       S.it, S.time, numel(idx)), 'FontSize', TITLE_SIZE); %#ok<UNRCH>
 end

@@ -1,11 +1,13 @@
-function files = list_snapshots(data_dir)
+function [files, its] = list_snapshots(data_dir)
 % LIST_SNAPSHOTS  List available snapshot files in chronological order,
 % preferring data/dump_list.txt (written incrementally by the Fortran
 % code) and falling back to a directory glob if that manifest is
-% missing.
+% missing. Also returns the saved iteration number of each file
+% (parsed from its 'snap_<it>.dat' filename), e.g. for use with
+% select_snapshots.m.
 %
-%   files = list_snapshots()            % looks in 'data/'
-%   files = list_snapshots('data')
+%   files = list_snapshots()                 % looks in 'data/'
+%   [files, its] = list_snapshots('data')
 
 if nargin < 1
     data_dir = 'data';
@@ -42,5 +44,16 @@ if isempty(files)
     [~, order] = sort({d.name});
     d = d(order);
     files = fullfile({d.folder}, {d.name});
+end
+
+its = zeros(1, numel(files));
+for k = 1:numel(files)
+    [~, base] = fileparts(files{k});
+    tok = regexp(base, 'snap_(\d+)', 'tokens', 'once');
+    if isempty(tok)
+        its(k) = NaN;
+    else
+        its(k) = str2double(tok{1});
+    end
 end
 end

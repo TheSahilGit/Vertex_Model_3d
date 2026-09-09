@@ -10,3 +10,4 @@ vertex3d
 data/*
 !data/example/
 !data/example/**
+videos/

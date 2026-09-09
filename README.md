@@ -116,16 +116,21 @@ running the Fortran code first.
 ## Matlab analysis (`matlab/`)
 
 ```matlab
-main_analysis.m          % example driver: reads the latest snapshot,
-                          % produces the whole-tissue plot and the
-                          % cutaway cross-section
-read_vertex_snapshot.m   % read one binary snapshot -> struct
-read_mesh_meta.m         % read data/mesh_meta.txt -> struct
-list_snapshots.m         % list available snapshots in order
-cell_faces_matrix.m      % snapshot -> patch()-ready Faces matrix
-plot_tissue_3d.m         % standard whole-tissue 3D plot
-plot_cross_section.m     % cutaway view: hollow interior + ring +
-                          % individual cell shapes
+main_analysis.m            % driver: static preview + tissue video (see below)
+read_vertex_snapshot.m     % read one binary snapshot -> struct
+read_mesh_meta.m           % read data/mesh_meta.txt -> struct
+list_snapshots.m           % list available snapshots, with their saved
+                            % iteration numbers, in order
+select_snapshots.m         % filter/subsample that list by a saved-iteration
+                            % start/end/stride
+cell_faces_matrix.m        % snapshot -> patch()-ready Faces matrix
+tissue_color_values.m      % snapshot + colouring mode -> per-cell scalars
+plot_tissue_3d.m           % standard whole-tissue 3D plot (colorbar, no title)
+plot_cross_section.m       % cutaway view: hollow interior + ring +
+                            % individual cell shapes
+make_tissue_video.m        % render a whole-tissue video across many snapshots
+make_cross_section_video.m % (same, for the cross-section view; wired into
+                            % main_analysis.m but off by default for now)
 ```
 
 ```matlab
@@ -136,16 +141,42 @@ plot_cross_section(S, 'y', 0.0);   % cut through the sphere centre
 
 `main_analysis.m` locates its own folder (works whether you `cd` into
 `matlab/` and run it directly, or run it from the project root via
-`run('matlab/main_analysis.m')`), reads the latest snapshot from
-`data/`, and automatically falls back to the bundled
-`data/example/` if `data/` is empty — so on a fresh clone, before
-ever building or running the Fortran code, this alone already
-produces all four plots:
+`run('matlab/main_analysis.m')`), reads snapshots from `data/`, and
+automatically falls back to the bundled `data/example/` if `data/` is
+empty — so on a fresh clone, before ever building or running the
+Fortran code, this alone already produces a static preview and a video:
 
 ```matlab
 % from the project root
 run('matlab/main_analysis.m')
 ```
+
+A block of flags at the top of `main_analysis.m` controls what it
+does — which colourings to include (`flag_color_nsides/volume/area`),
+whether to render the tissue/cross-section video at all
+(`flag_video_tissue`, `flag_video_cross_section`), and which saved
+snapshots go into the video, **expressed in terms of the saved
+iteration numbers** (the `it_dumps` cadence from `para_Simulation.dat`,
+not raw simulation steps or a plain file-list index):
+
+```matlab
+video_it_start  = -inf;   % first saved iteration to include (-inf = from the first)
+video_it_end    = inf;    % last saved iteration to include  ( inf = up to the last)
+video_it_stride = 1;      % use every Nth saved snapshot in that range
+video_fps       = 8;
+```
+
+e.g. `video_it_start = 1000; video_it_end = 3000; video_it_stride = 2;`
+uses every other saved snapshot between iteration 1000 and 3000.
+Videos are written to `videos/` (gitignored) as `.avi`
+(`Motion JPEG AVI`, chosen because it — unlike `MPEG-4` — is supported
+by MATLAB on every platform, including Linux). `make_tissue_video.m`
+pins the figure to an exact pixel size and force-resizes any frame
+that still comes back a different size before handing it to
+`VideoWriter`, since `writeVideo` errors out on the first size
+mismatch (e.g. a colorbar tick label gaining a digit can shift the
+rendered axes by a pixel) — otherwise a good chunk of frames into a
+long video.
 
 ## Sanity checks built in
 
