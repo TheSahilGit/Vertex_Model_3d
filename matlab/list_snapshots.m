@@ -24,7 +24,14 @@ if exist(manifest, 'file')
         end
         parts = strsplit(line);
         if numel(parts) >= 2
-            files{end+1} = parts{2}; %#ok<AGROW>
+            % The manifest stores the path the Fortran executable itself
+            % used (typically 'data/snap_...dat', relative to ITS OWN
+            % working directory at run time). Re-root just the basename
+            % onto the caller's data_dir instead of trusting that
+            % embedded path, so this works regardless of the caller's
+            % current working directory.
+            [~, base, ext] = fileparts(parts{2});
+            files{end+1} = fullfile(data_dir, [base ext]); %#ok<AGROW>
         end
     end
     fclose(fid);

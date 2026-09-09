@@ -5,17 +5,29 @@
 %   2. a cutaway cross-section revealing the ring / hollow interior
 %      alongside the cell shapes
 %
-% Run this script with the working directory set to the project root
-% (the one containing data/), or edit data_dir below.
+% This script locates itself (rather than relying on the current
+% working directory, which e.g. MATLAB's run() changes to the script's
+% own folder) so it works regardless of how/from where it is invoked.
 
-data_dir = 'data';
-addpath(pwd);
+this_dir     = fileparts(mfilename('fullpath'));  % .../matlab
+project_root = fileparts(this_dir);               % one level up
+data_dir     = fullfile(project_root, 'data');
+addpath(this_dir);
 
-meta  = read_mesh_meta(fullfile(data_dir, 'mesh_meta.txt'));
 files = list_snapshots(data_dir);
 if isempty(files)
-    error('main_analysis:nofiles', 'No snapshots found in %s -- run the simulation first.', data_dir);
+    % no simulation run yet (data/ is empty/gitignored) -- fall back to
+    % the small curated example dataset shipped in the repo
+    fprintf('No snapshots in %s -- using the bundled data/example/ instead.\n', data_dir);
+    data_dir = fullfile(project_root, 'data', 'example');
+    files = list_snapshots(data_dir);
 end
+if isempty(files)
+    error('main_analysis:nofiles', ...
+          'No snapshots found in %s or its example/ subfolder -- run the simulation first.', ...
+          fullfile(project_root, 'data'));
+end
+meta = read_mesh_meta(fullfile(data_dir, 'mesh_meta.txt'));
 
 fprintf('Found %d snapshots. R_apical=%.3g  R_basal=%.3g\n', ...
         numel(files), meta.R_apical, meta.R_basal);

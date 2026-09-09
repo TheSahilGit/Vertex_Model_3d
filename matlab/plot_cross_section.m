@@ -42,12 +42,18 @@ Fk = F(keep, :);
 fig = figure('Color', 'w');
 hold on
 
-% ---- reference annulus in the cutting plane: outer disk then an
-% inner disk drawn in the figure background colour "punches out" the
-% hollow interior, showing the ring cross-section unambiguously ----
+% ---- flat reference disk at the basal radius, coloured white, in the
+% cutting plane: from this oblique 3/4 viewpoint it sits just behind
+% the real (curved) basal cell patches and "punches out" a clean blank
+% hollow interior wherever no cell patch already covers it -- making
+% the true hollow (r < R_basal) unambiguous even between cells. (An
+% equivalent outer disk at R_apical was tried too, but at this oblique
+% angle it is a flat disk sitting slightly proud of the curved apical
+% shell and shows through the gaps between cells as odd flat shards;
+% the real apical cell patches already mark the outer boundary fine
+% without it.)
 theta = linspace(0, 2*pi, 200)';
-draw_disk(S.R_apical, cutvalue, axcol, [0.75 0.78 0.82], theta);
-draw_disk(S.R_basal,  cutvalue, axcol, [1 1 1],          theta);
+draw_disk(S.R_basal, cutvalue, axcol, [1 1 1], theta);
 
 % ---- the actual cutaway cell shapes: apical (outer) and basal (inner)
 % faces of every retained cell, so the shell thickness is explicit ----
@@ -57,13 +63,26 @@ h_bas = patch('Faces', Fk, 'Vertices', S.r_bas, 'FaceColor', [0.95 0.65 0.45], .
       'EdgeColor', [0.1 0.1 0.1], 'LineWidth', 0.5, 'FaceAlpha', 1.0);
 
 axis equal vis3d off
-camlight('headlight'); lighting gouraud; material dull
+% Flat, unlit colouring on purpose: with directional lighting, cells
+% whose polygon is nearly edge-on to this viewing angle (e.g. ones
+% that straddle the cut boundary, since cells are kept/dropped by
+% apical-centroid side rather than true polygon clipping) get shaded
+% almost black at grazing incidence, which reads as a rendering
+% glitch. Flat faces keep the schematic honest and legible instead.
 
-% look roughly along the cut normal so the cut face is fully visible
+% Camera on the side the cut face's outward normal points to (the
+% "kept" material is on the OTHER side, so this looks squarely into
+% the cut), with a bit of extra azimuth/elevation for a 3/4, not
+% perfectly flat-on, view. In MATLAB's view(az,el), az=0/90/180/270
+% correspond to the camera sitting on the -y/+x/+y/-x axis
+% respectively; since only the apical/basal CAPS are drawn here (no
+% explicit lateral wall faces), a face-on view (az aligned with the
+% cut axis, el~0) shows nothing -- verified empirically against real
+% renders before picking these angles.
 switch axcol
-    case 1, view(-90, 10);
-    case 2, view(0, 10);
-    case 3, view(35, 75);
+    case 1, view(110, 18);   % x-cut:  kept x<=cutvalue, cut normal +x
+    case 2, view(200, 18);   % y-cut:  kept y<=cutvalue, cut normal +y
+    case 3, view(35, 75);    % z-cut:  kept z<=cutvalue, cut normal +z (viewed from above)
 end
 
 title(sprintf('Cross-section (%s = %.3g) at step %d  (t = %.4g)', ...

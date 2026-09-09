@@ -1,0 +1,4 @@
+% it   filename
+         0  data/example/snap_00000000.dat
+      2500  data/example/snap_00002500.dat
+      5000  data/example/snap_00005000.dat
