@@ -60,7 +60,7 @@
   K_V                   = 1.0d0
   K_A                   = 1.0d0
   K_P                   = 0.05d0
-  Lambda_line           = -0.05d0
+  Lambda_line           = -0.1d0
   V0_scale              = 1.0d0
   A0_scale              = 1.0d0
 

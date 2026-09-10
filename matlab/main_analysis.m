@@ -77,11 +77,11 @@ ylabels = {'E', 'V_{lumen}', 'A_{outer}', 'F_{max}', 'N_{cell}', 'N_{T1}', 'N_{T
 fig = figure('Color', 'w', 'Position', [100 100 1500 950]);
 for idx = 1:numel(series)
     subplot(3, 3, idx);
-    plot(time, series{idx}, '-', 'LineWidth', 1.5, 'Color', [0.15 0.35 0.75]);
+    plot(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
     xlabel('t', 'FontSize', FONT_SIZE);
     ylabel(ylabels{idx}, 'FontSize', FONT_SIZE);
-    title(titles{idx}, 'FontSize', FONT_SIZE);
-    set(gca, 'FontSize', FONT_SIZE);
-    grid on
+    %title(titles{idx}, 'FontSize', FONT_SIZE);
+    set(gca, 'FontSize', FONT_SIZE , 'LineWidth', 4, 'FontName', 'sans');
+    grid off
 end
-sgtitle('Simulation diagnostics vs time', 'FontSize', FONT_SIZE + 4, 'FontWeight', 'bold');
+%sgtitle('Simulation diagnostics vs time', 'FontSize', FONT_SIZE + 4, 'FontWeight', 'bold');
