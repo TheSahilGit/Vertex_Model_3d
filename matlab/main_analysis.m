@@ -45,7 +45,7 @@ cut_value = 0.0;                    % cross-section cutting plane offset
 
 video_its = 1000:100:10000;
 
-video_fps = 8;                     % frames per second for saved videos
+video_fps = 4;                     % frames per second for saved videos
 video_dir = fullfile(project_root, 'videos');
 %% ------------------------------------------------------------------------
 

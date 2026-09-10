@@ -47,6 +47,24 @@ patch('Faces', F, 'Vertices', S.r_api, ...
 
 ax = gca;
 axis(ax, 'equal'); axis(ax, 'off');
+
+% Pin the axes to a FIXED reference frame (the apical radius at
+% t=0, a constant, rather than this frame's own data extent) instead
+% of leaving x/y/zlim on MATLAB's default "auto" (which refits to
+% whatever the current vertex coordinates span). The tissue's actual
+% apical radius genuinely, continuously shrinks over the run (nothing
+% constrains it to stay at R_apical -- that's only the t=0 value); on
+% auto limits, MATLAB re-zooms to compensate and keep the sphere
+% filling the frame, which both hides real physical shrinkage AND was
+% observed to occasionally do that re-zoom in a sudden jump rather
+% than smoothly (the sphere abruptly shrinking for the rest of a video
+% at some arbitrary point, with no topology event or other data
+% discontinuity anywhere near it). Fixing the limits to a constant
+% shows the true shrinkage (correct scientifically) and, as a welcome
+% side effect, removes the auto-rezoom mechanism that could glitch.
+R = S.R_apical * 1.05;
+xlim(ax, [-R R]); ylim(ax, [-R R]); zlim(ax, [-R R]);
+
 view(ax, 35, 20)
 camlight('headlight'); lighting gouraud; material dull
 colormap(parula)
@@ -68,19 +86,24 @@ ax.FontSize = FONT_SIZE;
 % the CURRENT tick labels' width (e.g. "6" vs "-0.07" need different
 % widths); fix both explicitly (normalized units) so the rendered
 % sphere sits in the exact same box on every frame regardless of that.
-%
-% NOTE: this only reliably takes effect with 'vis3d' NOT set on the
-% axes (see above). 'axis vis3d' freezes CameraViewAngle for
-% interactive rotation, and doing that BEFORE resizing Position here
-% left the two fighting each other unpredictably -- observed as the
-% rendered sphere randomly larger/smaller and even the title going
-% missing, frame to frame, with no other change and no error. We don't
-% need interactive rotation for a scripted, fixed-view video/plot, so
-% it's simply left off rather than juggling the two.
 ax.Units = 'normalized';
 ax.Position = [0.03 0.06 0.72 0.88];
 cb.Units = 'normalized';
 cb.Position = [0.80 0.12 0.045 0.76];
+
+% NOW freeze the camera zoom (CameraViewAngle), i.e. what 'axis vis3d'
+% would do -- but only AFTER the axes has its final Position, not
+% before. With CameraViewAngleMode left on 'auto' (the default),
+% MATLAB is free to silently recompute the zoom on any later redraw,
+% which happened partway through an otherwise perfectly smooth
+% simulation (no topology event, no data discontinuity at that time)
+% and showed up as the whole sphere abruptly shrinking for the rest of
+% a video. Freezing it here, once, after Position is final, pins the
+% zoom for good. (Freezing earlier -- e.g. via 'axis vis3d' before
+% Position was set -- locks in the zoom appropriate for the ORIGINAL,
+% not-yet-shrunk axes box, which is the OTHER failure mode: the sphere
+% and title come out mispositioned relative to the smaller box.)
+ax.CameraViewAngleMode = 'manual';
 
 title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
 end
