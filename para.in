@@ -70,10 +70,10 @@
 
   K_V                   = 1.0d0
   K_A                   = 1.0d0
-  K_P                   = -0.01d0
+  K_P                   = -0.02d0
   Lambda_line           = 1.0d0
   K_A_bas               = 1.0d0
-  K_P_bas               = -0.01d0
+  K_P_bas               = 0.1d0
   V0_scale              = 1.0d0
   A0_scale              = 1.0d0
   A0_bas_scale          = 1.0d0
