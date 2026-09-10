@@ -11,3 +11,11 @@ data/*
 !data/example/
 !data/example/**
 videos/
+
+# LaTeX build artifacts in docs/ -- keep the .tex source under version
+# control, but not the compiled PDF or intermediate build files.
+docs/*.pdf
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
