@@ -291,9 +291,10 @@ boundary is made of three kinds of face:
 
   \node[above=2pt] at (A0) {apical face};
   \node[below right=-2pt and 2pt] at (B3) {basal face};
-  \node at ($(A1)!0.5!(B1)$) [right=6pt, font=\scriptsize] {lateral face};
 
   \draw[<-, thick] ($(A2)!0.35!(B2)$) -- ++(-1.0,0.2) node[left, align=left, font=\scriptsize] {vertex column $j$:\\ two positions,\\ $\rvec^{\mathrm{api}}_j$ and $\rvec^{\mathrm{bas}}_j$};
+
+  \draw[<-, thick] ($(A1)!0.55!(B1)$) -- ++(-1.15,0.75) node[above left, align=right, font=\scriptsize] {lateral face\\ (one per edge)};
 \end{tikzpicture}
 \captionof{figure}{One cell, drawn as the hexagonal ``drum'' it really
 is: an apical hexagon, a basal hexagon directly below it, and six
@@ -1188,6 +1189,72 @@ exactly one more cell at $j$ besides $A,B$ -- call it $C$ -- and one
 more at $k$ -- call it $D$. When this edge's length drops below
 \texttt{L\_T1\_threshold}, the code performs the standard T1 flip.
 
+Before looking at the flip itself, it helps to see these four cells as
+what they really are: genuine 3D vertex columns, each with its own
+apical and basal point, not flat 2D tiles.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.8, every node/.style={font=\small}]
+  % apical (top/outer) points -- identical to the "before" panel of
+  % Fig.~\ref{fig:T1} below
+  \coordinate (j) at (0,0.35);
+  \coordinate (k) at (0,-0.35);
+  \coordinate (NW) at (-1.3,1.1);
+  \coordinate (NE) at (1.3,1.1);
+  \coordinate (SW) at (-1.3,-1.1);
+  \coordinate (SE) at (1.3,-1.1);
+  % basal (bottom/inner) echo of the very same points: scaled down and
+  % shifted, exactly the pseudo-3D convention of Fig.~\ref{fig:one-cell}
+  \coordinate (jB) at (0.35,-1.33);
+  \coordinate (kB) at (0.35,-1.77);
+  \coordinate (NWB) at (-0.46,-0.87);
+  \coordinate (NEB) at (1.16,-0.87);
+  \coordinate (SWB) at (-0.46,-2.23);
+  \coordinate (SEB) at (1.16,-2.23);
+  % lateral walls (struts), drawn first so everything else sits on top
+  \draw[thin, black!40] (NW)--(NWB) (NE)--(NEB) (SW)--(SWB) (SE)--(SEB) (j)--(jB) (k)--(kB);
+  % basal shell (faint)
+  \fill[cellB, opacity=0.3] (jB) -- (NEB) -- (SEB) -- (kB) -- cycle;
+  \fill[cellA, opacity=0.3] (jB) -- (kB) -- (SWB) -- (NWB) -- cycle;
+  \fill[cellC, opacity=0.3] (NWB) -- (jB) -- (NEB) -- cycle;
+  \fill[cellD, opacity=0.3] (SWB) -- (kB) -- (SEB) -- cycle;
+  \draw[thin, black!40] (NWB)--(NEB)--(SEB)--(SWB)--cycle (jB)--(kB);
+  % apical shell (solid), on top -- identical fills to the 2D panel below
+  \fill[cellB, opacity=0.75] (j) -- (NE) -- (SE) -- (k) -- cycle;
+  \fill[cellA, opacity=0.75] (j) -- (k) -- (SW) -- (NW) -- cycle;
+  \fill[cellC, opacity=0.75] (NW) -- (j) -- (NE) -- cycle;
+  \fill[cellD, opacity=0.75] (SW) -- (k) -- (SE) -- cycle;
+  \draw[thick] (NW)--(NE)--(SE)--(SW)--cycle;
+  \draw[very thick] (j)--(k);
+  \draw (j)--(NW) (j)--(NE) (k)--(SW) (k)--(SE);
+  \fill (j) circle(1.6pt) node[right=1pt]{$j$};
+  \fill (k) circle(1.6pt) node[right=1pt]{$k$};
+  \node at (-0.7,0) {\bfseries A};
+  \node at (0.7,0) {\bfseries B};
+  \node at (0,0.7) {\bfseries C};
+  \node at (0,-0.7) {\bfseries D};
+  \node[right, font=\scriptsize, align=left] at (1.7,-1.5) {apical shell (solid)\\and basal shell\\(faint) of the\\\emph{same} four cells,\\joined by lateral\\walls (thin struts)};
+\end{tikzpicture}
+\caption{The same four cells $A,B,C,D$ around the short edge $jk$,
+drawn as genuine 3D vertex columns rather than flat 2D tiles: solid
+= apical shell, faint = basal shell (shifted for the pseudo-3D view of
+Fig.~\ref{fig:one-cell}), thin lines = the lateral walls joining
+corresponding apical and basal points. The T1 flip described below
+happens to this whole 3D structure -- apical shell \emph{and} basal
+shell, together, since $j$ and $k$ are each a single vertex column with
+both an apical and a basal position.}
+\label{fig:T1-3d}
+\end{figure}
+
+Fig.~\ref{fig:T1-3d} is unwieldy to redraw twice (before and after) and
+to reason about directly, so the rest of this section uses the
+equivalent, much cleaner \textbf{top-down (apical) view} -- looking
+straight down the columns from outside the shell, which is exactly
+what you get by flattening Fig.~\ref{fig:T1-3d}'s solid apical shell
+into a flat 2D diagram and dropping the (fainter, mechanically
+identical) basal shell from the picture:
+
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[scale=0.85, every node/.style={font=\small}]
@@ -1303,6 +1370,51 @@ marked dead. The net effect on each of the (up to 3) neighbouring
 cells is exactly what you would expect: each loses one side, since two
 of its corners have just become the same point.
 
+As with T1, it is worth seeing the collapsing cell as a genuine 3D
+vertex column before switching to the flat top-down view used below:
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.85, every node/.style={font=\small}]
+  % basal shell (faint): the identical construction, scaled down and
+  % shifted, exactly the pseudo-3D convention of Fig.~\ref{fig:one-cell}
+  \begin{scope}[shift={(0.35,-1.85)}, scale=0.68]
+    \foreach \ang/\col in {90/cellA, 210/cellB, 330/cellD} {
+      \begin{scope}[rotate=\ang]
+        \fill[\col, opacity=0.3] (90:0.45) -- (110:1.3) -- (190:1.3) -- (210:0.45) -- cycle;
+        \draw[black!40] (90:0.45) -- (110:1.3) (210:0.45) -- (190:1.3);
+      \end{scope}
+    }
+    \draw[black!40, fill=black!15] (90:0.45) -- (210:0.45) -- (330:0.45) -- cycle;
+  \end{scope}
+  % lateral walls (struts) from the collapsing triangle's own 3
+  % corners down to their basal echo
+  \foreach \ang in {90,210,330} {
+    \draw[thin, black!40] (\ang:0.45) -- ($(0.35,-1.85)+0.68*(\ang:0.45)$);
+  }
+  % apical shell (solid), on top -- the collapsing cell and its 3
+  % neighbours, as genuine 3D vertex columns
+  \foreach \ang/\col in {90/cellA, 210/cellB, 330/cellD} {
+    \begin{scope}[rotate=\ang]
+      \fill[\col, opacity=0.75] (90:0.45) -- (110:1.3) -- (190:1.3) -- (210:0.45) -- cycle;
+      \draw (90:0.45) -- (110:1.3) (210:0.45) -- (190:1.3);
+    \end{scope}
+  }
+  \draw[thick, fill=black!25] (90:0.45) -- (210:0.45) -- (330:0.45) -- cycle;
+  \node[right, font=\scriptsize, align=left] at (1.7,-1.1) {apical shell (solid)\\and basal shell\\(faint) of the\\collapsing cell and\\its 3 neighbours};
+\end{tikzpicture}
+\caption{The collapsing triangular cell and its 3 neighbours, drawn as
+genuine 3D vertex columns: solid = apical shell, faint = basal shell
+(shifted for the pseudo-3D view of Fig.~\ref{fig:one-cell}). The T2
+collapse below happens to both shells at once -- every merged vertex
+column has its apical \emph{and} basal point averaged together, exactly
+as \texttt{collapse\_cell} does in the code (Section~\ref{sec:T2}).}
+\label{fig:T2-3d}
+\end{figure}
+
+Fig.~\ref{fig:T2-3d} is, again, easiest to reason about from directly
+above -- the same top-down (apical) view used for T1:
+
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[scale=1.05, every node/.style={font=\small}]
@@ -1359,6 +1471,58 @@ are inserted at the midpoint of each of these two edges, on
 into two contiguous arcs at those two new vertices -- each arc, closed
 off by the new shared edge between the two new vertices, becomes one
 daughter cell.
+
+Once again, it helps to see this happening to a genuine 3D vertex
+column, cut all the way from its apical face down to its basal face,
+before looking at the flat top-down view used for the rest of this
+section:
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.95, every node/.style={font=\small}]
+  \foreach \i in {1,...,6}{
+    \coordinate (P\i) at ({90+60*(\i-1)}:1.2);
+  }
+  \coordinate (V1) at ($(P1)!0.5!(P2)$);
+  \coordinate (V2) at ($(P4)!0.5!(P5)$);
+  % basal shell (faint): same hexagon and same cut, scaled down and
+  % shifted, exactly the pseudo-3D convention of Fig.~\ref{fig:one-cell}
+  \begin{scope}[shift={(0.4,-1.9)}, scale=0.68]
+    \coordinate (P1B) at (90:1.2); \coordinate (P2B) at (150:1.2);
+    \coordinate (P3B) at (210:1.2); \coordinate (P4B) at (270:1.2);
+    \coordinate (P5B) at (330:1.2); \coordinate (P6B) at (30:1.2);
+    \coordinate (V1B) at ($(P1B)!0.5!(P2B)$);
+    \coordinate (V2B) at ($(P4B)!0.5!(P5B)$);
+    \fill[cellA, opacity=0.28] (V1B) -- (P2B) -- (P3B) -- (P4B) -- (V2B) -- cycle;
+    \fill[cellB, opacity=0.28] (V2B) -- (P5B) -- (P6B) -- (P1B) -- (V1B) -- cycle;
+    \draw[black!40] (P1B)--(P2B)--(P3B)--(P4B)--(P5B)--(P6B)--cycle;
+    \draw[very thick, dashed, black!40] (V1B) -- (V2B);
+  \end{scope}
+  % lateral walls (struts)
+  \foreach \i in {1,...,6}{
+    \draw[thin, black!40] (P\i) -- ($(0.4,-1.9)+0.68*(P\i)$);
+  }
+  % apical shell (solid) -- identical to the panel of Fig.~\ref{fig:division} below
+  \fill[cellA, opacity=0.75] (V1) -- (P2) -- (P3) -- (P4) -- (V2) -- cycle;
+  \fill[cellB, opacity=0.75] (V2) -- (P5) -- (P6) -- (P1) -- (V1) -- cycle;
+  \draw[thick] (P1)--(P2)--(P3)--(P4)--(P5)--(P6)--cycle;
+  \draw[very thick, dashed] (V1) -- (V2);
+  \foreach \p in {P1,P2,P3,P4,P5,P6} { \fill (\p) circle (1.3pt); }
+  \fill (V1) circle (1.6pt) node[above left=1pt] {$v_1^{\mathrm{new}}$};
+  \fill (V2) circle (1.6pt) node[below right=1pt] {$v_2^{\mathrm{new}}$};
+  \node[right, font=\scriptsize, align=left] at (2.0,-1.4) {apical shell (solid),\\cut by the dashed\\division axis; the\\\emph{same} cut is made\\on the basal shell\\(faint) below};
+\end{tikzpicture}
+\caption{The dividing cell as a genuine 3D vertex column: solid =
+apical shell, faint = basal shell (shifted for the pseudo-3D view of
+Fig.~\ref{fig:one-cell}). The dashed division axis is cut on
+\emph{both} shells -- \texttt{do\_division} inserts a new vertex column
+(with its own apical \emph{and} basal position) at each bisected edge,
+exactly as for $v_1^{\mathrm{new}}, v_2^{\mathrm{new}}$ here.}
+\label{fig:division-3d}
+\end{figure}
+
+Flattened to the top-down (apical) view used for the rest of this
+section, the same division looks like this:
 
 \begin{figure}[h]
 \centering
