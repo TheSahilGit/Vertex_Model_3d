@@ -25,6 +25,20 @@ module mod_io
   !     int32  n_sides
   !     int32  vlist(MAX_SIDES)     (1-based vertex-column ids; padded with 0)
   !     real8  V0, A0, V_last, A_last
+  !
+  ! Layout of data/diag_<it8.8>.dat (scalar time-series diagnostics,
+  ! one small file per dump, same it8.8 naming/cadence as snap_<it8.8>,
+  ! so a given timestep's snap_ and diag_ files always pair up):
+  !   int32  it
+  !   real8  time
+  !   real8  energy            (total system energy)
+  !   real8  lumen_volume      (volume enclosed by the basal/inner surface)
+  !   real8  outer_area        (total apical/outer surface area)
+  !   real8  max_force         (largest |force| over every alive vertex,
+  !                             apical and basal columns both)
+  !   int32  n_cells           (alive cell count)
+  !   int32  cumulative_T1     (running total T1 count since t=0)
+  !   int32  cumulative_T2     (running total T2 count since t=0)
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -106,5 +120,48 @@ contains
     write(iun,'(I10,2X,A)') it, trim(fname)
     close(iun)
   end subroutine append_manifest
+
+  subroutine write_diagnostics(it, time, energy, lumen_volume, outer_area, max_force, &
+                                n_cells, cumulative_T1, cumulative_T2)
+    integer(i4), intent(in) :: it
+    real(dp),    intent(in) :: time, energy, lumen_volume, outer_area, max_force
+    integer(i4), intent(in) :: n_cells, cumulative_T1, cumulative_T2
+    character(len=256) :: fname
+    integer :: iun
+
+    write(fname, '(A,I8.8,A)') 'data/diag_', it, '.dat'
+    open(newunit=iun, file=trim(fname), status='replace', access='stream', &
+         form='unformatted', action='write')
+
+    write(iun) it
+    write(iun) time
+    write(iun) energy
+    write(iun) lumen_volume
+    write(iun) outer_area
+    write(iun) max_force
+    write(iun) n_cells
+    write(iun) cumulative_T1
+    write(iun) cumulative_T2
+
+    close(iun)
+
+    call append_diag_manifest(it, fname)
+  end subroutine write_diagnostics
+
+  subroutine append_diag_manifest(it, fname)
+    integer(i4), intent(in) :: it
+    character(len=*), intent(in) :: fname
+    integer :: iun
+    logical :: exist_flag
+    inquire(file='data/diag_list.txt', exist=exist_flag)
+    if (exist_flag) then
+      open(newunit=iun, file='data/diag_list.txt', status='old', position='append', action='write')
+    else
+      open(newunit=iun, file='data/diag_list.txt', status='replace', action='write')
+      write(iun,'(A)') '% it   filename'
+    end if
+    write(iun,'(I10,2X,A)') it, trim(fname)
+    close(iun)
+  end subroutine append_diag_manifest
 
 end module mod_io

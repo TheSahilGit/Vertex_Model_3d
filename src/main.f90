@@ -22,6 +22,8 @@ program main
   real(dp) :: energy, vol_total, area_total
   logical :: ok
   character(len=64) :: tag
+  integer(i4) :: cumulative_T1, cumulative_T2
+  real(dp) :: lumen_volume, max_force
 
   write(*,'(A)') '===================================================='
   write(*,'(A)') ' 3D Vertex Model on a hollow spherical shell'
@@ -65,9 +67,13 @@ program main
   end do
   call global_shell_checks(vol_total, area_total)
 
+  cumulative_T1 = 0
+  cumulative_T2 = 0
+
   call ensure_data_dir()
   call write_mesh_meta()
   call write_snapshot(0_i4)
+  call write_diagnostics_now(0_i4)
   write(*,'(A,I0,A,I0,A)') 'mesh_init: initial dump written (', count_alive_cells(), &
        ' cells, ', count_alive_verts(), ' vertex columns).'
 
@@ -80,6 +86,8 @@ program main
     if (mod(it, it_topology_check) == 0) then
       call attempt_T1_transitions(n_t1)
       call attempt_T2_transitions(n_t2)
+      cumulative_T1 = cumulative_T1 + n_t1
+      cumulative_T2 = cumulative_T2 + n_t2
       if (n_t1 > 0 .or. n_t2 > 0) then
         write(tag, '(A,I0)') 'step ', it
         call topology_check(trim(tag))
@@ -104,6 +112,7 @@ program main
 
     if (mod(it, it_dumps) == 0) then
       call write_snapshot(it)
+      call write_diagnostics_now(it)
       write(*,'(A,I8,A,ES14.6,A,ES14.6,A,ES14.6,A,I0)') &
            'step ', it, '   E=', energy, '   V_tot=', vol_total, &
            '   A_tot=', area_total, '   n_cell=', count_alive_cells()
@@ -114,5 +123,29 @@ program main
   call topology_check('final')
   call ring_integrity_check('final', ok)
   write(*,'(A)') 'Done.'
+
+contains
+
+  ! Gathers the current per-step diagnostics (some, like max_force,
+  ! freshly computed from this step's forces; others, like
+  ! cumulative_T1/T2, running totals accumulated in the time loop
+  ! above) and writes data/diag_<it>.dat. An internal subroutine so it
+  ! can see all of main's local state directly, with no long argument
+  ! list to keep in sync.
+  subroutine write_diagnostics_now(it_arg)
+    integer(i4), intent(in) :: it_arg
+    integer(i4) :: j
+
+    call compute_lumen_volume(lumen_volume)
+
+    max_force = 0.0_dp
+    do j = 1, n_vert
+      if (.not. vert_alive(j)) cycle
+      max_force = max(max_force, norm2(f_api(:, j)), norm2(f_bas(:, j)))
+    end do
+
+    call write_diagnostics(it_arg, real(it_arg, dp) * dt, energy, lumen_volume, area_total, &
+                            max_force, count_alive_cells(), cumulative_T1, cumulative_T2)
+  end subroutine write_diagnostics_now
 
 end program main

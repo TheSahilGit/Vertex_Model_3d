@@ -53,21 +53,21 @@
 !                          with many divisions.
 ! =====================================================================
 &SIMPARAMS
-  N_subdivision         = 4
+  N_subdivision         = 2
   R_apical              = 10.0d0
-  R_basal               = 6.0d0
+  R_basal               = 9.5d0
 
   K_V                   = 1.0d0
   K_A                   = 1.0d0
   K_P                   = 0.05d0
-  Lambda_line           = 0.1d0 !-0.1d0
+  Lambda_line           = -0.05d0
   V0_scale              = 1.0d0
   A0_scale              = 1.0d0
 
   zeta_friction         = 1.0d0
-  kBT                   = 0.01d0
+  kBT                   = 0.0d0
   dt                    = 1.0d-3
-  n_steps               = 10000
+  n_steps               = 100000
   it_dumps              = 100
 
   L_T1_threshold        = 0.05d0

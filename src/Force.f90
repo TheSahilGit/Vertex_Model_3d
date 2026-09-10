@@ -164,4 +164,40 @@ contains
     end do
   end subroutine compute_forces
 
+  !---------------------------------------------------------------------
+  ! Volume enclosed by the basal (inner) surface alone -- i.e. the
+  ! hollow lumen cavity -- for the "lumen volume" diagnostic.
+  !
+  ! Uses the same divergence-theorem trick as compute_forces (valid for
+  ! any reference point, here the origin/sphere centre, given a closed,
+  ! consistently outward-oriented surface), but with the basal fan in
+  ! NON-reversed order. Inside compute_forces the basal cap is one face
+  ! of a CELL's own closed boundary, so it needs an INWARD (toward the
+  ! cell's interior, i.e. away from the lumen) normal -- hence the
+  ! reversed fan there. Here the same basal points instead form the
+  ! boundary of the LUMEN itself, which needs the opposite convention:
+  ! an OUTWARD-from-lumen (away from the origin) normal, i.e. the
+  ! non-reversed order used below.
+  subroutine compute_lumen_volume(lumen_volume)
+    real(dp), intent(out) :: lumen_volume
+    integer(i4) :: ic, n, k, kp
+    real(dp) :: Barr(3, MAX_SIDES), cb(3)
+    real(dp) :: vtri, gp(3), gq(3), gr(3)
+
+    lumen_volume = 0.0_dp
+    do ic = 1, n_cell
+      if (.not. cells(ic)%alive) cycle
+      n = cells(ic)%n
+      do k = 1, n
+        Barr(:, k) = r_bas(:, cells(ic)%vlist(k))
+      end do
+      cb = centroid_n(Barr(:, 1:n), n)
+      do k = 1, n
+        kp = mod(k, n) + 1
+        call tetra_vol_grad(cb, Barr(:, k), Barr(:, kp), vtri, gp, gq, gr)
+        lumen_volume = lumen_volume + vtri
+      end do
+    end do
+  end subroutine compute_lumen_volume
+
 end module mod_force
