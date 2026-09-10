@@ -53,9 +53,9 @@
 !                          with many divisions.
 ! =====================================================================
 &SIMPARAMS
-  N_subdivision         = 3
+  N_subdivision         = 4
   R_apical              = 10.0d0
-  R_basal               = 8.0d0
+  R_basal               = 6.0d0
 
   K_V                   = 1.0d0
   K_A                   = 1.0d0
