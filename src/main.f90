@@ -137,6 +137,23 @@ contains
     integer(i4) :: j
 
     call compute_lumen_volume(lumen_volume)
+    if (lumen_volume < 0.0_dp) then
+      ! The basal surface is a closed shell around the (empty) lumen;
+      ! its enclosed volume can only be negative if that shell has
+      ! folded over/inverted itself somewhere (self-intersecting
+      ! geometry) -- an unambiguous sign the mesh has broken down
+      ! geometrically, even though it can remain perfectly valid
+      ! *combinatorially* (Euler characteristic/ring integrity only
+      ! check topology, not embedding) and so pass every other check.
+      ! Seen in practice with strongly destabilizing parameters (e.g.
+      ! a large-magnitude NEGATIVE Lambda_line): nothing in the
+      ! standard vertex-model energy functional prevents a cell from
+      ! geometrically overlapping/crossing its neighbours once driven
+      ! hard enough -- this is a limitation of the model itself, not
+      ! merely of this implementation.
+      write(*,'(A,I0,A,ES14.6)') 'WARNING: lumen_volume < 0 at it=', it_arg, &
+           ' (', lumen_volume, ') -- the mesh has likely folded over itself.'
+    end if
 
     max_force = 0.0_dp
     do j = 1, n_vert
