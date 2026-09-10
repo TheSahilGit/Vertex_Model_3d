@@ -77,11 +77,13 @@ ylabels = {'E', 'V_{lumen}', 'A_{outer}', 'F_{max}', 'N_{cell}', 'N_{T1}', 'N_{T
 fig = figure('Color', 'w', 'Position', [100 100 1500 950]);
 for idx = 1:numel(series)
     subplot(3, 3, idx);
-    if strcmp(ylabels{idx}, 'E') || strcmp(ylabels{idx}, 'F_{max}')
-        loglog(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
-    else
-    plot(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
-    end
+    % if strcmp(ylabels{idx}, 'E') || strcmp(ylabels{idx}, 'F_{max}') | strcmp(ylabels{idx}, 'V_{lumen}')
+    %     loglog(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
+    % else
+    % plot(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
+    % end
+    loglog(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
+
     xlabel('t', 'FontSize', FONT_SIZE);
     ylabel(ylabels{idx}, 'FontSize', FONT_SIZE);
     %title(titles{idx}, 'FontSize', FONT_SIZE);
