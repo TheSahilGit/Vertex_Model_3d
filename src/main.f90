@@ -55,15 +55,17 @@ program main
 
   ! ---------------------------------------------------------------
   ! Target shapes: V0 = V0_scale * (initial volume), A0 = A0_scale *
-  ! (initial apical area), i.e. by default the freshly built geodesic
-  ! mesh IS the unstrained reference configuration (zero elastic
-  ! energy at t=0; only the lateral-tension term is initially active).
+  ! (initial apical area), A0_bas = A0_bas_scale * (initial basal
+  ! area), i.e. by default the freshly built geodesic mesh IS the
+  ! unstrained reference configuration (zero elastic energy at t=0;
+  ! only the lateral-tension term is initially active).
   ! ---------------------------------------------------------------
   call compute_forces(energy, vol_total, area_total)
   do i = 1, n_cell
     if (.not. cells(i)%alive) cycle
-    cells(i)%V0 = V0_scale * cells(i)%V_last
-    cells(i)%A0 = A0_scale * cells(i)%A_last
+    cells(i)%V0     = V0_scale     * cells(i)%V_last
+    cells(i)%A0     = A0_scale     * cells(i)%A_last
+    cells(i)%A0_bas = A0_bas_scale * cells(i)%A_bas_last
   end do
   call global_shell_checks(vol_total, area_total)
 

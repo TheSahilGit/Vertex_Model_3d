@@ -24,7 +24,7 @@ module mod_io
   !     int32  alive_flag (0/1)
   !     int32  n_sides
   !     int32  vlist(MAX_SIDES)     (1-based vertex-column ids; padded with 0)
-  !     real8  V0, A0, V_last, A_last
+  !     real8  V0, A0, V_last, A_last, A0_bas, A_bas_last
   !
   ! Layout of data/diag_<it8.8>.dat (scalar time-series diagnostics,
   ! one small file per dump, same it8.8 naming/cadence as snap_<it8.8>,
@@ -97,7 +97,8 @@ contains
       write(iun) aflag
       write(iun) cells(i)%n
       write(iun) cells(i)%vlist(1:MAX_SIDES)
-      write(iun) cells(i)%V0, cells(i)%A0, cells(i)%V_last, cells(i)%A_last
+      write(iun) cells(i)%V0, cells(i)%A0, cells(i)%V_last, cells(i)%A_last, &
+                 cells(i)%A0_bas, cells(i)%A_bas_last
     end do
 
     close(iun)

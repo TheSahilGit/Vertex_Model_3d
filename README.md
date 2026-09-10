@@ -28,11 +28,24 @@ and every interior vertex column is shared by exactly 3 cells
 **Energy functional** (standard terms):
 
 ```
-E = Σ_cells (K_V/2)(V   - V0)²      volume elasticity
-  + Σ_cells (K_A/2)(Aapi - A0)²     apical-area elasticity
-  + Σ_cells (K_P/2) Papi²           apical perimeter contractility
-  + Σ_edges Λ · S_lateral(edge)     lateral (cell-cell) interfacial tension
+E = Σ_cells (K_V/2)(V     - V0)²          volume elasticity
+  + Σ_cells (K_A/2)(Aapi  - A0)²          apical-area elasticity
+  + Σ_cells (K_P/2) Papi²                apical perimeter contractility
+  + Σ_cells (K_A_bas/2)(Abas - A0_bas)²  basal-area elasticity
+  + Σ_cells (K_P_bas/2) Pbas²            basal perimeter contractility
+  + Σ_edges Λ · S_lateral(edge)          lateral (cell-cell) interfacial tension
 ```
+
+The basal-area/perimeter terms are the exact mirror of the apical
+ones, built from the basal shell instead of the apical one. They are
+genuinely independent moduli (`K_A_bas`, `K_P_bas`, and a separate
+target-area scale `A0_bas_scale`) — set them equal to their apical
+counterparts for a symmetric apical/basal tissue, or differently for
+an asymmetric one (e.g. a stiffer or more contractile basal side). If
+omitted from `para.in`, each defaults to its apical counterpart
+(`K_A_bas=K_A`, `K_P_bas=K_P`, `A0_bas_scale=A0_scale`), so older
+`para.in` files still work unchanged, with the basal face behaving
+exactly like the apical one.
 
 Volumes and areas are computed by triangulating every face (fan from
 the face centroid, or two triangles per lateral quad) and using exact
@@ -40,7 +53,7 @@ divergence-theorem/triangle-area identities; every term is
 differentiated **analytically** (see `src/Force.f90`), not by finite
 differences. `src/sanity_checks.f90` verifies the analytic gradients
 against finite differences and verifies the whole volume/area pipeline
-against an exact unit cube.
+(now including the basal area) against an exact unit cube.
 
 **Dynamics.** Overdamped Langevin: `ζ dr/dt = -dE/dr + ξ(t)`, Euler–
 Maruyama integrated (`src/Langevin_update.f90`).

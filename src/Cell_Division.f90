@@ -60,7 +60,7 @@ contains
     integer(i4) :: new_cell
     logical :: ins_ok
     real(dp) :: u
-    real(dp) :: V0_old, A0_old
+    real(dp) :: V0_old, A0_old, A0_bas_old
 
     ok = .false.
     n = cells(parent)%n
@@ -206,21 +206,24 @@ contains
       if (daughter2(i) == SENT2) daughter2(i) = v2new
     end do
 
-    V0_old = cells(parent)%V0
-    A0_old = cells(parent)%A0
+    V0_old     = cells(parent)%V0
+    A0_old     = cells(parent)%A0
+    A0_bas_old = cells(parent)%A0_bas
 
     cells(parent)%vlist = 0
     cells(parent)%vlist(1:len1) = daughter1(1:len1)
     cells(parent)%n = len1
-    cells(parent)%V0 = 0.5_dp * V0_old
-    cells(parent)%A0 = 0.5_dp * A0_old
+    cells(parent)%V0     = 0.5_dp * V0_old
+    cells(parent)%A0     = 0.5_dp * A0_old
+    cells(parent)%A0_bas = 0.5_dp * A0_bas_old
 
     cells(new_cell)%vlist = 0
     cells(new_cell)%vlist(1:len2) = daughter2(1:len2)
     cells(new_cell)%n = len2
     cells(new_cell)%alive = .true.
-    cells(new_cell)%V0 = 0.5_dp * V0_old
-    cells(new_cell)%A0 = 0.5_dp * A0_old
+    cells(new_cell)%V0     = 0.5_dp * V0_old
+    cells(new_cell)%A0     = 0.5_dp * A0_old
+    cells(new_cell)%A0_bas = 0.5_dp * A0_bas_old
 
     ok = .true.
   end subroutine do_division

@@ -9,7 +9,8 @@ module mod_parameters
   real(dp)    :: R_apical, R_basal
 
   real(dp)    :: K_V, K_A, K_P, Lambda_line
-  real(dp)    :: V0_scale, A0_scale
+  real(dp)    :: K_A_bas, K_P_bas
+  real(dp)    :: V0_scale, A0_scale, A0_bas_scale
 
   real(dp)    :: zeta_friction, kBT, dt
   integer(i4) :: n_steps, it_dumps
@@ -29,7 +30,8 @@ contains
     character(len=*), intent(in) :: fname
     integer :: iun, ios
     namelist /SIMPARAMS/ N_subdivision, R_apical, R_basal, &
-         K_V, K_A, K_P, Lambda_line, V0_scale, A0_scale, &
+         K_V, K_A, K_P, Lambda_line, K_A_bas, K_P_bas, &
+         V0_scale, A0_scale, A0_bas_scale, &
          zeta_friction, kBT, dt, n_steps, it_dumps, &
          L_T1_threshold, A_T2_threshold, it_topology_check, &
          division_enable, it_division_check, V_division_threshold, &
@@ -38,6 +40,15 @@ contains
     ! default for the one optional/newer key, in case an older
     ! para.in without it is supplied
     capacity_growth_factor = 3.0_dp
+
+    ! Basal-face moduli/target-scale default to a NEGATIVE sentinel
+    ! here; if para.in does not set them explicitly, they are fixed up
+    ! to equal the corresponding apical value right after the namelist
+    ! read below (so an older para.in with no basal keys at all still
+    ! runs, with the basal face behaving exactly like the apical one).
+    K_A_bas      = -1.0_dp
+    K_P_bas      = -1.0_dp
+    A0_bas_scale = -1.0_dp
 
     open(newunit=iun, file=trim(fname), status='old', action='read', iostat=ios)
     if (ios /= 0) then
@@ -50,6 +61,11 @@ contains
       stop 1
     end if
     close(iun)
+
+    ! ---- basal-face default fix-up (see sentinel comment above) ----
+    if (K_A_bas      < 0.0_dp) K_A_bas      = K_A
+    if (K_P_bas      < 0.0_dp) K_P_bas      = K_P
+    if (A0_bas_scale < 0.0_dp) A0_bas_scale = A0_scale
 
     ! ---- sanity checks on the parameters themselves ----
     if (N_subdivision < 0 .or. N_subdivision > 6) then

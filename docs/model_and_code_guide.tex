@@ -359,7 +359,7 @@ pentagons to be exactly 12, regardless of how many hexagons there are.
 The code checks Eq.~\eqref{eq:euler} directly at start-up and after
 every mesh change, as a cheap, powerful sanity check that nothing has
 silently gone wrong with the mesh's connectivity (see
-Section~\ref{sec:code-sanity}).
+Section~\ref{sec:mod-sanity}).
 
 \section{The energy functional}
 \label{sec:energy}
@@ -373,27 +373,47 @@ the same spirit as a ball rolling downhill on a landscape --- except
 here the ``landscape'' has one dimension for every coordinate of every
 vertex.
 
-The energy used here is a standard, widely-used one, built from four
-physically motivated terms:
+The energy used here is a standard, widely-used one, built from six
+physically motivated terms -- one volume term, and one matched
+apical/basal pair each for area elasticity and perimeter
+contractility, plus the lateral interface term:
 \begin{equation}
-  E \;=\;
+\begin{aligned}
+  E \;=\;&
   \underbrace{\sum_{\text{cells } i} \frac{K_V}{2}\bigl(V_i - V_i^0\bigr)^2}_{\text{volume elasticity}}
   \;+\;
   \underbrace{\sum_{\text{cells } i} \frac{K_A}{2}\bigl(A_i - A_i^0\bigr)^2}_{\text{apical-area elasticity}}
   \;+\;
   \underbrace{\sum_{\text{cells } i} \frac{K_P}{2}\, P_i^2}_{\text{apical perimeter contractility}}
+  \\[4pt]
+  &\;+\;
+  \underbrace{\sum_{\text{cells } i} \frac{K_A^{\mathrm{bas}}}{2}\bigl(A_i^{\mathrm{bas}} - A_i^{0,\mathrm{bas}}\bigr)^2}_{\text{basal-area elasticity}}
+  \;+\;
+  \underbrace{\sum_{\text{cells } i} \frac{K_P^{\mathrm{bas}}}{2}\, \bigl(P_i^{\mathrm{bas}}\bigr)^2}_{\text{basal perimeter contractility}}
   \;+\;
   \underbrace{\sum_{\text{edges}} \Lambda \, S_{\mathrm{lat}}}_{\text{lateral interfacial tension}} .
+\end{aligned}
   \label{eq:energy}
 \end{equation}
 Here, for cell $i$: $V_i$ is its volume (the code variable \texttt{V}),
 $A_i$ is its apical face's area (\texttt{Aapi}), $P_i$ is its apical
-face's perimeter (\texttt{Papi}); $V_i^0$ and $A_i^0$ are its
-\emph{target} (preferred) volume and apical area
-(\texttt{V0}, \texttt{A0}); and $S_{\mathrm{lat}}$ is the area of one
-lateral (cell--cell contact) face. $K_V, K_A, K_P, \Lambda$ are
-constants (moduli) set in the parameter file, controlling how strongly
-each effect matters.
+face's perimeter (\texttt{Papi}), and $A_i^{\mathrm{bas}}, P_i^{\mathrm{bas}}$
+are the \emph{same two quantities measured on the basal face instead}
+(\texttt{Abas}, \texttt{Pbas}) -- built by exactly the same
+fan-triangulation/edge-sum recipe as their apical counterparts
+(Section~\ref{sec:basal-reverse} explains the one twist needed for the
+area term). $V_i^0, A_i^0, A_i^{0,\mathrm{bas}}$ are the cell's
+\emph{target} (preferred) volume, apical area and basal area
+(\texttt{V0}, \texttt{A0}, \texttt{A0\_bas}); and $S_{\mathrm{lat}}$ is
+the area of one lateral (cell--cell contact) face. $K_V, K_A, K_P,
+K_A^{\mathrm{bas}}, K_P^{\mathrm{bas}}, \Lambda$ are constants
+(moduli) set in the parameter file, controlling how strongly each
+effect matters -- note $K_A^{\mathrm{bas}}$ and $K_P^{\mathrm{bas}}$
+(\texttt{K\_A\_bas}, \texttt{K\_P\_bas} in the code) are entirely
+independent numbers from $K_A, K_P$: nothing forces the basal face to
+behave like the apical one, though it is a common and simple choice to
+set them equal (Section~\ref{sec:basal-benchmark} discusses exactly
+this choice, among others, once the forces have been derived).
 
 \begin{physbox}
 \textbf{Physical meaning of each term.}
@@ -403,17 +423,20 @@ each effect matters.
   incompressible, so squeezing or stretching a cell away from its
   preferred volume costs energy, growing quadratically -- exactly like
   a 3D spring.
-  \item \emph{Apical area elasticity}, $\tfrac{K_A}{2}(A-A^0)^2$: cells
-  tend to maintain a preferred amount of apical surface (related to
-  their density in the tissue and to the actin cortex resting there);
-  deviating from it also costs energy like a spring.
-  \item \emph{Apical perimeter contractility}, $\tfrac{K_P}{2}P^2$:
-  the actomyosin ``purse-string'' running around a cell's apical
-  perimeter actively contracts, and doing so against the rest of the
-  tissue costs energy proportional to (perimeter)$^2$. Note this term
-  has \emph{no} target value -- shorter is always energetically better,
-  unlike the other two terms which have a preferred value they resist
-  moving away from in \emph{either} direction.
+  \item \emph{Apical/basal area elasticity}, $\tfrac{K_A}{2}(A-A^0)^2$
+  and $\tfrac{K_A^{\mathrm{bas}}}{2}(A^{\mathrm{bas}}-A^{0,\mathrm{bas}})^2$:
+  cells tend to maintain a preferred amount of apical (and,
+  independently, basal) surface -- related to their density in the
+  tissue and to the actin cortex resting at that face; deviating from
+  either preferred value costs energy like a spring.
+  \item \emph{Apical/basal perimeter contractility},
+  $\tfrac{K_P}{2}P^2$ and $\tfrac{K_P^{\mathrm{bas}}}{2}(P^{\mathrm{bas}})^2$:
+  an actomyosin ``purse-string'' running around a cell's apical (or
+  basal) perimeter actively contracts, and doing so against the rest
+  of the tissue costs energy proportional to (perimeter)$^2$. Note
+  neither term has a target value -- shorter is always energetically
+  better, unlike the area/volume terms which have a preferred value
+  they resist moving away from in \emph{either} direction.
   \item \emph{Lateral interfacial tension}, $\Lambda\, S_{\mathrm{lat}}$:
   the wall between two neighbouring cells \emph{is} their contact
   surface, and it has its own effective tension, coming from the
@@ -421,7 +444,7 @@ each effect matters.
   effectively $\Lambda<0$ locally) and cortical tension at that
   interface (which raises it, $\Lambda>0$ locally). One single
   coefficient $\Lambda$ is used per interface here, and its sign
-  matters a great deal (Section~\ref{sec:code-sanity} discusses what
+  matters a great deal (Section~\ref{sec:instability} discusses what
   happens when $\Lambda$ is strongly negative).
 \end{itemize}
 \end{physbox}
@@ -429,64 +452,65 @@ each effect matters.
 This is the same family of energy used in essentially all modern vertex
 models of epithelia; what is specific to this 3D, apical--basal version
 is that $V_i$ is a true 3D polyhedron volume (not inferred from a 2D
-area and a fixed height), and that the tension term acts on a genuine
+area and a fixed height), that the tension term acts on a genuine
 3D lateral wall \emph{area} $S_{\mathrm{lat}}$ (not an edge length as it
-would in a 2D model). A note on naming: the code calls the modulus
-\texttt{Lambda\_line} and this document sometimes still calls the
-effect ``line tension'' in asides -- that name is inherited from 2D
-vertex models, where the contact between two cells really is a 1D edge
-(a line), so the term there is written $\Lambda\cdot(\text{edge
-length})$. Here the corresponding contact is a genuine 2D wall, so the
-same physical idea becomes $\Lambda\cdot(\text{wall area})$, exactly as
-written above -- ``lateral interfacial tension'' is the accurate name
-in 3D, and is preferred throughout this document.
+would in a 2D model), and that the apical and basal faces each carry
+their own independent area/perimeter energetics rather than only the
+apical face being mechanically active. A note on naming: the code
+calls the lateral modulus \texttt{Lambda\_line} and this document
+sometimes still calls the effect ``line tension'' in asides -- that
+name is inherited from 2D vertex models, where the contact between two
+cells really is a 1D edge (a line), so the term there is written
+$\Lambda\cdot(\text{edge length})$. Here the corresponding contact is
+a genuine 2D wall, so the same physical idea becomes
+$\Lambda\cdot(\text{wall area})$, exactly as written above -- ``lateral
+interfacial tension'' is the accurate name in 3D, and is preferred
+throughout this document.
 
-\subsection*{Why these four terms, and not some other combination?}
+\subsection*{Why these six terms, and not some other combination?}
 A natural question at this point: why not just give every cell a
 single surface tension $\gamma$ acting on its whole boundary, the way
 you would for a simple liquid droplet or a soap bubble, instead of
-three separate face-by-face terms? And having split things up by face,
-why is the basal face treated differently from the apical one? And is
-the lateral term really a separate ``adhesion'' effect on top of
-everything else, or is it the same thing as cell--cell adhesion?
+five separate face-by-face terms? And is the lateral term really a
+separate ``adhesion'' effect on top of everything else, or is it the
+same thing as cell--cell adhesion?
 \begin{physbox}
-\textbf{Three clarifications.}
+\textbf{Two clarifications.}
 \begin{itemize}[leftmargin=1.4em]
   \item \textbf{A cell is not mechanically uniform, so one surface
   tension is not enough.} A real epithelial cell's cortex is
-  biologically different at different faces. At the apical face there
-  is a contractile actomyosin ``purse-string'' encircling the
-  junctional belt -- this is an \emph{active} process (myosin motors
-  pulling, whether or not it is energetically favourable) with no
-  preferred length, which is exactly what the perimeter term
-  $\tfrac{K_P}{2}P^2$ encodes (it only ever wants $P\to 0$). Area
-  elasticity $\tfrac{K_A}{2}(A-A^0)^2$ is a completely different,
-  \emph{passive} effect: resistance to compressing or stretching the
-  apical domain away from a preferred size, which resists changes in
-  \emph{either} direction. An active, one-directional pull and a
+  biologically different at different faces, and can be different
+  again at the apical face versus the basal one -- e.g. the apical
+  face often carries a prominent contractile actomyosin
+  ``purse-string'' encircling the junctional belt, while the basal
+  face (sitting on, or facing, something mechanically different --
+  a basement membrane in a real tissue, or the lumen cavity in the
+  geometries this code targets, Section~\ref{sec:geom-setup}) can have
+  its own, independently tuned amount of contractility and area
+  elasticity. Within a single face, the two mechanisms are also
+  qualitatively different from each other: perimeter contractility
+  ($\tfrac{K_P}{2}P^2$ or $\tfrac{K_P^{\mathrm{bas}}}{2}(P^{\mathrm{bas}})^2$)
+  is an \emph{active} process (myosin motors pulling, whether or not
+  it is energetically favourable) with no preferred length -- it only
+  ever wants $P\to 0$ -- while area elasticity
+  ($\tfrac{K_A}{2}(A-A^0)^2$ or its basal counterpart) is a completely
+  different, \emph{passive} effect: resistance to compressing or
+  stretching that face away from a preferred size, resisting changes
+  in \emph{either} direction. An active, one-directional pull and a
   passive, two-directional spring cannot be captured by a single
-  tension coefficient, so both terms are needed together -- this is
-  exactly the reasoning behind the widely used 2D Farhadifar
+  tension coefficient, so both terms are needed at each face -- this
+  is exactly the reasoning behind the widely used 2D Farhadifar
   \emph{et al.} (2007) vertex energy, of which the apical terms here
-  are a direct 3D descendant.
-  \item \textbf{Why apical-only, with no basal area/perimeter terms.}
-  This is a genuine \emph{simplification of this particular model}, not
-  a law of physics -- it could be relaxed. It is made for two reasons:
-  first, the apical side is what is actually imaged and tracked in the
-  experiments this style of model is built to match (junction markers
-  such as E-cadherin or ZO-1 are apical), so the apical terms are the
-  ones with direct quantitative grounding; second, in the hollow-shell
-  geometries this code targets (Section~\ref{sec:geom-setup}) the basal
-  face borders the fluid-filled lumen, not a rigid substrate, so unlike
-  a tissue sitting on a real basement membrane there is no obvious
-  independent contractile/elastic apparatus to give it its own term
-  here. If you wanted to model a tissue whose basal side \emph{does}
-  carry its own active/elastic machinery, symmetric basal area and
-  perimeter terms could be added to Eq.~\ref{eq:energy} using exactly
-  the same fan-triangulation and gradient machinery derived in
-  Section~\ref{sec:forces} for the apical ones -- nothing about the
-  method restricts it to the apical face, only this particular choice
-  of energy does.
+  are a direct 3D descendant, now mirrored onto the basal face as
+  well. Giving the two faces \emph{independent} moduli
+  ($K_A^{\mathrm{bas}}, K_P^{\mathrm{bas}}$ separate from $K_A, K_P$)
+  rather than forcing them equal is a deliberate choice: it lets you
+  model anything from a perfectly symmetric apical--basal tissue
+  (set them equal -- the code's own default if you omit the basal
+  keys from \texttt{para.in}) to a strongly polarised one (e.g. a
+  much stiffer or more contractile basal side, representing a real
+  basement membrane), and to see the difference for yourself
+  (Section~\ref{sec:basal-benchmark} does exactly that).
   \item \textbf{The lateral term \emph{is} cell--cell adhesion, not
   something separate from it.} $S_{\mathrm{lat}}$ in
   Eq.~\ref{eq:energy} is precisely the lateral wall shared by two
@@ -862,9 +886,54 @@ do k = 1, n
   ! ...accumulated into gV_B exactly as for the apical cap...
 end do
 \end{lstlisting}
-Note the basal cap contributes to the cell's \emph{volume} only -- there
-is no basal-area or basal-perimeter term in this energy functional (see
-the discussion at the end of Section~\ref{sec:energy} for why).
+
+\subsection{The basal area and basal perimeter}
+\label{sec:basal-area-perim}
+The energy functional (Eq.~\ref{eq:energy}) also has a basal-area
+elasticity term and a basal perimeter contractility term, mirroring
+the apical ones exactly. Both are built from the very same basal fan
+used above for the volume -- with one pleasant simplification: unlike
+the \emph{signed volume}, the (unsigned) triangle \emph{area} and its
+gradient (Eqs.~\ref{eq:tri-grad}) do \textbf{not} depend on the order
+in which the three corners are given. Swapping two corners flips the
+sign of the normal $\hat n$ used inside \texttt{tri\_area\_grad} (since
+$\vec n=(\qvec-\pvec)\times(\rvec-\pvec)$ changes sign when $\qvec$
+and $\rvec$ are exchanged), but every gradient formula in
+Eq.~\ref{eq:tri-grad} pairs $\hat n$ with a vector built from
+\emph{that same} swap (e.g.\ $\hat n\times(\rvec-\qvec)$), so the two
+sign flips cancel exactly, leaving the physical gradient (matched to
+each actual vertex, not to its ``$\pvec$/$\qvec$/$\rvec$'' argument
+slot) unchanged. In short: \emph{area doesn't care about winding, only
+signed volume does} -- so the same $(\cb,\Barr_{kp},\Barr_k)$ triangle
+order already used above for the reversed-winding volume fan can be
+reused as-is for the basal area and perimeter, with no separate pass
+and no second reversed/non-reversed distinction to track:
+\begin{lstlisting}
+! (continuing the same k-loop as the basal-volume fan above)
+call tri_area_grad(cb, Barr(:,kp), Barr(:,k), atri, gp, gq, gr)
+Abas = Abas + atri
+gArea_B(:, kp) = gArea_B(:, kp) + gq
+gArea_B(:, k)  = gArea_B(:, k)  + gr
+do j = 1, n
+  gArea_B(:, j) = gArea_B(:, j) + gp / real(n, dp)   ! same centroid chain rule as gArea_A
+end do
+
+d = Barr(:, kp) - Barr(:, k)
+edge_len = norm3(d)
+Pbas = Pbas + edge_len
+gPer_B(:, k)  = gPer_B(:, k)  - d / edge_len          ! same recipe as the apical perimeter
+gPer_B(:, kp) = gPer_B(:, kp) + d / edge_len
+\end{lstlisting}
+The basal-area gradient goes through exactly the same
+direct-plus-centroid-chain-rule split as the apical one
+(Section~\ref{sec:centroid-chain}), and the basal-perimeter gradient is
+exactly the plain edge-length gradient derived just below for the
+apical perimeter (Section~\ref{sec:apical-perim}), evaluated on the
+basal points instead. So the basal cap ends up contributing to three things: the
+cell's volume $V$ (via the reversed tetrahedron fan above), its basal
+area $A_{\mathrm{bas}}$, and its basal perimeter $P_{\mathrm{bas}}$
+(both via this same fan, in the same triangle order, at essentially no
+extra cost).
 
 \subsection{The lateral walls}
 \label{sec:lateral-walls}
@@ -884,6 +953,7 @@ Both triangles' tetrahedron-volumes add to the cell's total volume $V$
 both triangles' areas add to $S_{\mathrm{lat}}$ for that one edge.
 
 \subsection{The apical perimeter}
+\label{sec:apical-perim}
 The apical perimeter needs no new machinery at all: it is just the sum
 of the $n$ edge lengths, $P_{\mathrm{api}}=\sum_k |\Aarr_{k+1}-\Aarr_k|$.
 Writing $\vec d = \Aarr_{k+1}-\Aarr_k$ and using the same
@@ -899,14 +969,15 @@ which is exactly \texttt{gPer\_A(:,k) -= d/edge\_len} and
 \subsection{Putting it all together: the total force}
 \label{sec:force-assembly}
 Every cell's volume $V$, apical area $A_{\mathrm{api}}$, apical
-perimeter $P_{\mathrm{api}}$ and, for every one of its edges, lateral
+perimeter $P_{\mathrm{api}}$, basal area $A_{\mathrm{bas}}$, basal
+perimeter $P_{\mathrm{bas}}$, and, for every one of its edges, lateral
 area $S_{\mathrm{lat}}$, are now known, together with the gradient of
 each with respect to every one of that cell's own vertex columns
-(arrays \texttt{gV\_A}/\texttt{gV\_B}, \texttt{gArea\_A},
-\texttt{gPer\_A}, \texttt{gLat\_A}/\texttt{gLat\_B} in the code). Since
-$E$ (Eq.~\ref{eq:energy}) is a sum over cells of simple functions of
-these quantities, the chain rule gives, for one cell $i$ and one of its
-vertex columns $j$:
+(arrays \texttt{gV\_A}/\texttt{gV\_B}, \texttt{gArea\_A}/\texttt{gArea\_B},
+\texttt{gPer\_A}/\texttt{gPer\_B}, \texttt{gLat\_A}/\texttt{gLat\_B} in
+the code). Since $E$ (Eq.~\ref{eq:energy}) is a sum over cells of
+simple functions of these quantities, the chain rule gives, for one
+cell $i$ and one of its vertex columns $j$:
 \begin{align}
   \frac{\partial E_i}{\partial \Aarr_j} &=
      K_V\underbrace{(V_i-V_i^0)}_{\Delta V}\frac{\partial V_i}{\partial \Aarr_j}
@@ -915,17 +986,25 @@ vertex columns $j$:
    + \tfrac12\Lambda\frac{\partial S_{\mathrm{lat},i}}{\partial \Aarr_j}, \label{eq:dE-api}\\
   \frac{\partial E_i}{\partial \Barr_j} &=
      K_V\Delta V\,\frac{\partial V_i}{\partial \Barr_j}
+   + K_A^{\mathrm{bas}}\underbrace{(A_i^{\mathrm{bas}}-A_i^{0,\mathrm{bas}})}_{\Delta A^{\mathrm{bas}}}\frac{\partial A_i^{\mathrm{bas}}}{\partial \Barr_j}
+   + K_P^{\mathrm{bas}} P_i^{\mathrm{bas}} \frac{\partial P_i^{\mathrm{bas}}}{\partial \Barr_j}
    + \tfrac12\Lambda\frac{\partial S_{\mathrm{lat},i}}{\partial \Barr_j}, \label{eq:dE-bas}
 \end{align}
 using $\partial/\partial V[(K_V/2)(V-V^0)^2] = K_V(V-V^0)$ and
-likewise for the $K_A$ and $K_P$ terms (elementary calculus on a
-quadratic), and where $\Barr_j$ only feeds into $V_i$ and
-$S_{\mathrm{lat},i}$ since there is no basal area or perimeter term
-(Section~\ref{sec:basal-reverse}). The factor $\tfrac12$ on the
+likewise for the $K_A$, $K_P$, $K_A^{\mathrm{bas}}$ and
+$K_P^{\mathrm{bas}}$ terms (elementary calculus on a quadratic; the two
+perimeter terms are the $A^0\to 0$-less special case, i.e. just
+$\partial/\partial P[(K_P/2)P^2]=K_PP$). Notice how closely
+Eq.~\ref{eq:dE-bas} mirrors Eq.~\ref{eq:dE-api} -- $\Barr_j$ now feeds
+into $V_i$, $A_i^{\mathrm{bas}}$, $P_i^{\mathrm{bas}}$ and
+$S_{\mathrm{lat},i}$, exactly the basal-face counterparts of what
+$\Aarr_j$ feeds into on the apical side. The factor $\tfrac12$ on the
 lateral term is there because \emph{both} of the two cells sharing
 that wall run this same loop over ``their own'' copy of the edge; each
 contributing half means the two together contribute the full
-$\Lambda\,S_{\mathrm{lat}}$ exactly once, not twice.
+$\Lambda\,S_{\mathrm{lat}}$ exactly once, not twice -- no such factor is
+needed for the area/perimeter terms since an apical or basal face
+belongs to exactly one cell, never shared between two.
 
 Finally, summing Eqs.~\ref{eq:dE-api}--\ref{eq:dE-bas} over every cell
 $i$ that owns vertex column $j$ (a vertex is shared by 2--3 cells) and
@@ -941,11 +1020,13 @@ the vertex:
 which is precisely the accumulation step at the end of the \texttt{do
 ic = 1, n\_cell} loop in \texttt{compute\_forces}:
 \begin{lstlisting}
-f_api(:, gvid) = f_api(:, gvid) - ( K_V * dV * gV_A(:, k)      &
-                                  + K_A * dA * gArea_A(:, k)   &
-                                  + K_P * Papi * gPer_A(:, k)  &
+f_api(:, gvid) = f_api(:, gvid) - ( K_V * dV * gV_A(:, k)          &
+                                  + K_A * dA * gArea_A(:, k)       &
+                                  + K_P * Papi * gPer_A(:, k)      &
                                   + 0.5_dp * Lambda_line * gLat_A(:, k) )
-f_bas(:, gvid) = f_bas(:, gvid) - ( K_V * dV * gV_B(:, k)      &
+f_bas(:, gvid) = f_bas(:, gvid) - ( K_V * dV * gV_B(:, k)          &
+                                  + K_A_bas * dAbas * gArea_B(:, k) &
+                                  + K_P_bas * Pbas * gPer_B(:, k)   &
                                   + 0.5_dp * Lambda_line * gLat_B(:, k) )
 \end{lstlisting}
 Because the code loops over cells (not over vertices), and every cell
@@ -1327,8 +1408,83 @@ edges, needing room for \emph{two} new sides, not one) -- and only
 allocates the two new vertex columns and the new cell slot once every
 check has passed.
 
-\section{A known instability: strongly negative lateral tension}
+\section{Sanity checks and worked benchmarks}
 \label{sec:code-sanity}
+
+\subsection{A worked check: turning on the basal terms}
+\label{sec:basal-benchmark}
+Section~\ref{sec:energy} introduced $K_A^{\mathrm{bas}}, K_P^{\mathrm{bas}},
+A^{0,\mathrm{bas}}$ as independent basal-face moduli/target, defaulting
+to their apical counterparts if left unset. Before trusting that code
+at all, it was checked the same way every other geometric quantity in
+this project is checked (Section~\ref{sec:mod-sanity}): the unit-cube
+self-test (\texttt{test\_cube\_volume}) was extended to also assert
+$A^{\mathrm{bas}}=1$ for the cube's basal (unit-square) face, which it
+does, exactly, at start-up, on every run. With that primitive-level
+check passing, three full runs (same geodesic mesh, $L=2$, 162 cells;
+same $\Lambda=+0.1$ so the tissue relaxes smoothly rather than hitting
+the instability of Section~\ref{sec:instability} below; $10^5$ steps
+each) were compared, differing only in the basal moduli:
+\begin{center}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & \textbf{zero basal} & \textbf{equal to apical} & \textbf{different} \\
+$K_A^{\mathrm{bas}}$ & $0$ & $1.0$ (=$K_A$) & $5.0$ \\
+$K_P^{\mathrm{bas}}$ & $0$ & $0.05$ (=$K_P$) & $0.5$ \\
+$A^{0,\mathrm{bas}}$ scale & -- & $1.0\times$ initial & $1.2\times$ initial \\
+\midrule
+$E(t{=}0)$                 & $6298.1$ & $10580.4$ & $29672.2$ \\
+$E(t{=}\mathrm{end})$      & $464.6$  & $845.8$   & $5020.9$ \\
+final $\max|\vec F|$       & $3.0\times10^{-3}$ & $3.2\times10^{-5}$ & $1.1\times10^{-12}$ \\
+final mean $A^{\mathrm{bas}}$ & $6.73$ & $6.58$ & $7.45$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+All three runs stayed perfectly well behaved throughout: the
+lumen volume (Section~\ref{sec:basal-reverse}) stayed positive the
+whole time, no NaNs appeared anywhere, the Euler-characteristic and
+ring-integrity checks passed at every check, and no T1/T2 events were
+needed (a smooth, symmetric relaxation from an already-close-to-round
+starting mesh). A few things are worth reading off this table
+directly:
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Zero basal moduli reproduces the old, apical-only
+  behaviour exactly}, as it must: with $K_A^{\mathrm{bas}}=K_P^{\mathrm{bas}}=0$,
+  every new term in Eq.~\ref{eq:energy} and every new contribution to
+  Eq.~\ref{eq:dE-bas} is multiplied by zero, so the physics is
+  bit-for-bit what it would be without this feature at all -- this is
+  the natural regression benchmark for the change, and it holds by
+  construction, not just in this one run.
+  \item \textbf{Turning on matching basal terms makes the tissue settle
+  \emph{more precisely}} into its equilibrium: the final residual
+  force drops by almost two orders of magnitude (from $3\times10^{-3}$
+  to $3\times10^{-5}$) simply because the basal face now has its own
+  restoring forces pulling it towards a well-defined equilibrium shape,
+  on top of what volume and lateral tension already provided.
+  \item \textbf{Giving the basal face a genuinely different target}
+  (here, $20\%$ larger than its initial area, with a stiffer modulus
+  to go with it) drives the tissue to a \emph{different, still stable}
+  equilibrium: the basal face grows towards its enlarged target ($6.92
+  \to 7.45$, on the way to $8.30$ -- not all the way, since the other
+  terms resist the pull), and -- because every cell's apical, basal and
+  lateral faces are mechanically coupled through the shared volume and
+  lateral-tension terms -- the apical face and the lumen volume both
+  expand too, even though nothing was changed about the apical
+  parameters directly. The residual force here is smaller still
+  ($10^{-12}$, essentially machine precision): a real energy minimum
+  was found, not a numerical artefact, and it was found in the
+  \emph{correct direction} (growing, as the enlarged target demands,
+  rather than shrinking or diverging) -- good evidence that the sign
+  of the new force terms in Eq.~\ref{eq:dE-bas} is correct.
+\end{itemize}
+This is exactly the kind of asymmetric apical--basal behaviour the
+independent moduli make possible: a tissue whose basal side is, say,
+attached to a stiffer real basement membrane can now be modelled by
+simply giving it a larger $K_A^{\mathrm{bas}}$, without touching
+anything on the apical side.
+
+\subsection{A known instability: strongly negative lateral tension}
+\label{sec:instability}
 One physics result worth flagging explicitly, because it comes
 straight out of the model (Eq.~\ref{eq:energy}) and is not a coding
 bug: nothing in this energy functional stops a cell from
@@ -1469,18 +1625,32 @@ constants.
 it fills in roughly two dozen \texttt{module}-level variables (visible
 to every other module that \texttt{use}s \texttt{mod\_parameters}),
 covering every physical modulus in Chapter~\ref{ch:theory}
-($K_V,K_A,K_P,\Lambda$ as \texttt{K\_V,K\_A,K\_P,Lambda\_line}), every
-geometric/mesh setting (\texttt{N\_subdivision, R\_apical, R\_basal}),
-every dynamics setting (\texttt{zeta\_friction, kBT, dt, n\_steps}), and
-every transition threshold (\texttt{L\_T1\_threshold,
-A\_T2\_threshold, V\_division\_threshold}, and how often to check for
-each). \textbf{Calls:} only Fortran intrinsics (it reads a
-\texttt{NAMELIST} block, Fortran's native ``named key=value list''
-file format). It also runs a handful of basic sanity checks on the
-values themselves (e.g. $R_{\mathrm{basal}}>0$ and
-$R_{\mathrm{apical}}>R_{\mathrm{basal}}$, $dt>0$) and stops the program
-immediately with a clear message if any of them look nonsensical,
-rather than silently running a broken simulation.
+($K_V,K_A,K_P,\Lambda$ as \texttt{K\_V,K\_A,K\_P,Lambda\_line}, and
+their basal counterparts $K_A^{\mathrm{bas}}, K_P^{\mathrm{bas}}$ as
+\texttt{K\_A\_bas, K\_P\_bas}), every geometric/mesh setting
+(\texttt{N\_subdivision, R\_apical, R\_basal}), every dynamics setting
+(\texttt{zeta\_friction, kBT, dt, n\_steps}), and every transition
+threshold (\texttt{L\_T1\_threshold, A\_T2\_threshold,
+V\_division\_threshold}, and how often to check for each).
+\textbf{Calls:} only Fortran intrinsics (it reads a \texttt{NAMELIST}
+block, Fortran's native ``named key=value list'' file format). It also
+runs a handful of basic sanity checks on the values themselves (e.g.
+$R_{\mathrm{basal}}>0$ and $R_{\mathrm{apical}}>R_{\mathrm{basal}}$,
+$dt>0$) and stops the program immediately with a clear message if any
+of them look nonsensical, rather than silently running a broken
+simulation. One subtlety here: \texttt{K\_A\_bas}, \texttt{K\_P\_bas}
+and \texttt{A0\_bas\_scale} (the basal-face target-area scale,
+Section~\ref{sec:energy}) are given a negative sentinel default
+(\texttt{-1.0}) \emph{before} the file is read; if \texttt{para.in}
+does not set them explicitly they are left negative by the read, and a
+short fix-up right after it replaces each still-negative one with its
+apical counterpart (\texttt{K\_A}, \texttt{K\_P}, \texttt{A0\_scale}).
+This is exactly the same trick already used for
+\texttt{capacity\_growth\_factor} (a fixed default, rather than a
+sentinel, since it doesn't need to mirror another variable) -- it lets
+an older \texttt{para.in} with no basal keys at all keep working
+unchanged, with the basal face defaulting to behave exactly like the
+apical one.
 
 \subsection{\texttt{mod\_data.f90} -- the core data structures}
 This file defines the two central data structures literally everything
@@ -1494,8 +1664,10 @@ hard cap on polygon valence), whether the slot is currently in use
 (\texttt{alive} -- cells removed by a T2 event are marked
 \texttt{.false.} rather than physically deleted from the array, so
 other cells' stored ids into the array stay valid), and its target
-volume/area and most-recently-computed volume/area
-($V^0,A^0,V,A_{\mathrm{api}}$ as \texttt{V0, A0, V\_last, A\_last}).
+volume/apical-area/basal-area and most-recently-computed
+volume/apical-area/basal-area
+($V^0,A^0,A^{0,\mathrm{bas}},V,A_{\mathrm{api}},A_{\mathrm{bas}}$ as
+\texttt{V0, A0, A0\_bas, V\_last, A\_last, A\_bas\_last}).
 
 \paragraph{The global vertex/cell arrays.} Every vertex column's apical
 and basal positions ($\rvec_{\mathrm{api}}, \rvec_{\mathrm{bas}}$ as
@@ -1734,9 +1906,10 @@ apical area over the whole tissue (\texttt{vol\_total, area\_total} --
 used by \texttt{global\_shell\_checks} and printed every dump), and,
 written directly into the global arrays, every force
 ($\fapi{j},\fbas{j}$ as \texttt{f\_api, f\_bas}) and each cell's
-freshly computed volume/area (\texttt{cells(:)\%V\_last,
-cells(:)\%A\_last}, later used by \texttt{attempt\_cell\_divisions} to
-check the growth threshold). \textbf{Calls:} \texttt{centroid\_n},
+freshly computed volume/apical-area/basal-area (\texttt{cells(:)\%V\_last,
+cells(:)\%A\_last, cells(:)\%A\_bas\_last}, later used by
+\texttt{attempt\_cell\_divisions} to check the growth threshold).
+\textbf{Calls:} \texttt{centroid\_n},
 \texttt{tetra\_vol\_grad}, \texttt{tri\_area\_grad}, \texttt{norm3}
 -- called once per time step, before \texttt{langevin\_step}.
 \paragraph{Computes the lumen volume
@@ -1854,7 +2027,11 @@ identify the two neighbours whose edges will be bisected),
 \texttt{random\_number} (to pick the division axis). As described in
 Section~\ref{sec:division}, every check (polygon-size limits, array
 capacity, neighbour side-count headroom) runs \emph{before} any of
-these mutating calls, so a rejected division touches nothing.
+these mutating calls, so a rejected division touches nothing. Both
+daughters inherit half of the parent's target volume \emph{and} target
+apical \emph{and} basal area (\texttt{V0, A0, A0\_bas} all
+halved) -- so neither daughter starts under artificial elastic stress
+on either face from suddenly being half the size of its own target.
 
 \subsection{\texttt{io\_module.f90} -- binary output}
 \label{sec:io-module-code}
@@ -1880,8 +2057,8 @@ Called once, at start-up, read by every MATLAB script via
 \textbf{Input:} the current iteration number \texttt{it}.
 \textbf{Output:} \texttt{data/snap\_<it>.dat}, a stream/unformatted
 binary file with every vertex column's position and alive flag, and
-every cell's ring, sides, alive flag and volume/area
-(target and last-computed). \textbf{Calls:}
+every cell's ring, sides, alive flag and volume/apical-area/basal-area
+(target and last-computed, 6 reals per cell in total). \textbf{Calls:}
 \texttt{append\_manifest}. Called once per dump (every
 \texttt{it\_dumps} steps).
 \paragraph{Records one snapshot in the manifest
@@ -1930,11 +2107,14 @@ gradients being correct.
 hardcoded, single-cell ``mesh'': a unit cube, apical face at $z=1$,
 basal face at $z=0$). \textbf{Output:} pass/fail flag \texttt{ok}
 (true only if the \emph{production} \texttt{compute\_forces} routine
-itself recovers exactly $V=1, A_{\mathrm{api}}=1$ for this cube -- this
-directly validates the face-winding/fan-triangulation convention used
-throughout \texttt{Force.f90}, not just the raw gradients).
-\textbf{Calls:} \texttt{allocate\_data}, \texttt{compute\_forces}.
-Called once, at start-up, immediately after the previous check.
+itself recovers exactly $V=1, A_{\mathrm{api}}=1$ \emph{and}
+$A_{\mathrm{bas}}=1$ for this cube -- the cube's basal face is also a
+unit square, so this last check is exactly what confirms the basal-area
+fan (Section~\ref{sec:basal-area-perim}) is wired up correctly, on top
+of validating the face-winding/fan-triangulation convention used
+throughout \texttt{Force.f90} more generally). \textbf{Calls:}
+\texttt{allocate\_data}, \texttt{compute\_forces}. Called once, at
+start-up, immediately after the previous check.
 \paragraph{Compares the built mesh to an ideal sphere/shell
 (\texttt{global\_shell\_checks}).} \textbf{Input:} the freshly computed
 \texttt{vol\_total, area\_total} for the real, just-built mesh.
@@ -1973,13 +2153,15 @@ direct translation of the physics into control flow:
   \texttt{topology\_check}, \texttt{ring\_integrity\_check}.
   \item \textbf{Setting the reference state}: one call to
   \texttt{compute\_forces} on the freshly built mesh, then every
-  cell's target volume/area are set as
+  cell's target volume/apical-area/basal-area are set as
   $V^0_i=$\texttt{V0\_scale}$\times V_i$,
-  $A^0_i=$\texttt{A0\_scale}$\times A_i$ -- i.e. by default
-  (\texttt{V0\_scale}=\texttt{A0\_scale}=1) the freshly built mesh
-  \emph{is} its own unstrained reference shape, so the volume/area
-  elastic energy starts at exactly zero and only the lateral-tension
-  term is active at $t=0$. Then \texttt{global\_shell\_checks}.
+  $A^0_i=$\texttt{A0\_scale}$\times A_i$,
+  $A^{0,\mathrm{bas}}_i=$\texttt{A0\_bas\_scale}$\times A^{\mathrm{bas}}_i$
+  -- i.e. by default (all three scales $=1$) the freshly built mesh
+  \emph{is} its own unstrained reference shape, so the volume and
+  apical-/basal-area elastic energy all start at exactly zero, leaving
+  only the lateral-tension and the two (target-free) perimeter
+  contractility terms active at $t=0$. Then \texttt{global\_shell\_checks}.
   \item \textbf{First dump}: \texttt{ensure\_data\_dir},
   \texttt{write\_mesh\_meta}, \texttt{write\_snapshot(0)},
   \texttt{write\_diagnostics\_now(0)}.
@@ -2042,7 +2224,9 @@ video, depending on how many snapshots are selected. \textbf{Calls:}
 \paragraph{Reads one vertex snapshot (\texttt{read\_vertex\_snapshot}).}
 \textbf{Input:} a filename. \textbf{Output:} a struct \texttt{S} with
 every apical/basal position (\texttt{S.r\_api, S.r\_bas}), every cell's
-ring/sides/alive flag/volume/area, matching the byte layout documented
+ring/sides/alive flag/volume/apical-area/basal-area
+(\texttt{S.cell\_A0bas, S.cell\_Abaslast} alongside the older
+\texttt{S.cell\_A0, S.cell\_Alast}), matching the byte layout documented
 in \texttt{src/io\_module.f90} exactly (plain \texttt{fread} calls, no
 external dependency). \textbf{Calls:} none (MATLAB built-ins only).
 \paragraph{Reads one diagnostics snapshot (\texttt{read\_diagnostics}).}

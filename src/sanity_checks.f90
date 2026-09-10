@@ -124,17 +124,24 @@ contains
     cells(1)%alive = .true.
     cells(1)%V0 = 0.0_dp
     cells(1)%A0 = 0.0_dp
+    cells(1)%A0_bas = 0.0_dp
 
     call compute_forces(energy, vol_total, area_total)
 
+    ! The cube's basal face (z=0) is also a unit square, so Abas must
+    ! come out to exactly 1 too -- this is the check that the basal
+    ! area/perimeter pipeline (added alongside the apical one, sharing
+    ! the same REVERSED fan order used for the basal volume contribution)
+    ! has the right magnitude and is not silently zero or doubled.
     ok = (abs(cells(1)%V_last - 1.0_dp) < 1.0e-10_dp) .and. &
-         (abs(cells(1)%A_last - 1.0_dp) < 1.0e-10_dp)
+         (abs(cells(1)%A_last - 1.0_dp) < 1.0e-10_dp) .and. &
+         (abs(cells(1)%A_bas_last - 1.0_dp) < 1.0e-10_dp)
 
     if (ok) then
-      write(*,'(A)') 'sanity: unit-cube volume/area test passed (V=1, Aapi=1). OK'
+      write(*,'(A)') 'sanity: unit-cube volume/area test passed (V=1, Aapi=1, Abas=1). OK'
     else
-      write(*,'(A,F12.8,A,F12.8)') 'FAIL unit-cube test: V_last=', cells(1)%V_last, &
-           '  A_last=', cells(1)%A_last
+      write(*,'(A,F12.8,A,F12.8,A,F12.8)') 'FAIL unit-cube test: V_last=', cells(1)%V_last, &
+           '  A_last=', cells(1)%A_last, '  A_bas_last=', cells(1)%A_bas_last
     end if
   end subroutine test_cube_volume
 

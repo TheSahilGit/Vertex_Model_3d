@@ -2,10 +2,12 @@ module mod_force
   ! Standard 3D vertex-model energy functional and its analytic gradient
   ! (= minus the mechanical force on every vertex).
   !
-  !   E = Sum_cells  (K_V/2)(V_i    - V0_i)^2        volume elasticity
-  !     + Sum_cells  (K_A/2)(Aapi_i - A0_i)^2         apical-area elasticity
-  !     + Sum_cells  (K_P/2) Papi_i^2                 apical perimeter contractility
-  !     + Sum_edges  Lambda_line * S_lateral(edge)    lateral (cell-cell) interfacial tension
+  !   E = Sum_cells  (K_V/2)(V_i        - V0_i)^2         volume elasticity
+  !     + Sum_cells  (K_A/2)(Aapi_i     - A0_i)^2         apical-area elasticity
+  !     + Sum_cells  (K_P/2) Papi_i^2                     apical perimeter contractility
+  !     + Sum_cells  (K_A_bas/2)(Abas_i - A0_bas_i)^2     basal-area elasticity
+  !     + Sum_cells  (K_P_bas/2) Pbas_i^2                 basal perimeter contractility
+  !     + Sum_edges  Lambda_line * S_lateral(edge)        lateral (cell-cell) interfacial tension
   !
   ! Each cell is the polyhedron with apical polygon r_api(vlist), basal
   ! polygon r_bas(vlist) and lateral quadrilateral faces joining them.
@@ -19,6 +21,18 @@ module mod_force
   ! mod_geometry (chain rule through the centroid where relevant); see
   ! sanity_checks.f90 for automated checks of both the raw gradients
   ! and the sign convention (winding) used here, against a unit cube.
+  !
+  ! The basal-area/perimeter terms (K_A_bas, K_P_bas) are the exact
+  ! mirror of the apical-area/perimeter ones, just built from the
+  ! basal fan/edges instead of the apical ones. Unlike the volume fan,
+  ! the basal AREA fan does NOT need a reversed vertex order: area
+  ! (|n|/2) and its gradient are both invariant under swapping the
+  ! last two triangle corners (swapping flips the sign of nhat, but
+  ! that sign cancels out of every gradient formula in
+  ! tri_area_grad -- only the signed tetrahedron volume actually cares
+  ! about winding). So the same (cb, Barr(kp), Barr(k)) triangle order
+  ! already used for the reversed-winding volume fan is reused as-is
+  ! for the basal area and perimeter below, with no separate pass.
   !
   ! Each lateral interface is shared by exactly two cells, both of
   ! which loop over "their own" copy of that edge; to avoid double
@@ -42,15 +56,15 @@ contains
     real(dp) :: Aarr(3, MAX_SIDES), Barr(3, MAX_SIDES)
     real(dp) :: ca(3), cb(3)
     real(dp) :: gV_A(3, MAX_SIDES), gV_B(3, MAX_SIDES)
-    real(dp) :: gArea_A(3, MAX_SIDES)
-    real(dp) :: gPer_A(3, MAX_SIDES)
+    real(dp) :: gArea_A(3, MAX_SIDES), gArea_B(3, MAX_SIDES)
+    real(dp) :: gPer_A(3, MAX_SIDES), gPer_B(3, MAX_SIDES)
     real(dp) :: gLat_A(3, MAX_SIDES), gLat_B(3, MAX_SIDES)
-    real(dp) :: V, Aapi, Papi, Slat_total
+    real(dp) :: V, Aapi, Papi, Abas, Pbas, Slat_total
     real(dp) :: vtri, gp(3), gq(3), gr(3)
     real(dp) :: vtri2, gp2(3), gq2(3), gr2(3)
     real(dp) :: atri
     real(dp) :: d(3), edge_len
-    real(dp) :: dV, dA
+    real(dp) :: dV, dA, dAbas
 
     f_api = 0.0_dp
     f_bas = 0.0_dp
@@ -70,10 +84,11 @@ contains
       cb = centroid_n(Barr(:, 1:n), n)
 
       gV_A(:, 1:n) = 0.0_dp; gV_B(:, 1:n) = 0.0_dp
-      gArea_A(:, 1:n) = 0.0_dp
-      gPer_A(:, 1:n) = 0.0_dp
+      gArea_A(:, 1:n) = 0.0_dp; gArea_B(:, 1:n) = 0.0_dp
+      gPer_A(:, 1:n) = 0.0_dp; gPer_B(:, 1:n) = 0.0_dp
       gLat_A(:, 1:n) = 0.0_dp; gLat_B(:, 1:n) = 0.0_dp
-      V = 0.0_dp; Aapi = 0.0_dp; Papi = 0.0_dp; Slat_total = 0.0_dp
+      V = 0.0_dp; Aapi = 0.0_dp; Papi = 0.0_dp; Abas = 0.0_dp; Pbas = 0.0_dp
+      Slat_total = 0.0_dp
 
       ! ---- apical cap: fan from ca, volume via tetra(origin,ca,Ak,Akp) ----
       do k = 1, n
@@ -113,6 +128,26 @@ contains
         do j = 1, n
           gV_B(:, j) = gV_B(:, j) + gp / real(n, dp)
         end do
+
+        ! basal area: same triangle order as above -- area/its gradient
+        ! do not depend on winding (see the header-comment note), so no
+        ! separate reversed/non-reversed distinction is needed here.
+        call tri_area_grad(cb, Barr(:, kp), Barr(:, k), atri, gp, gq, gr)
+        Abas = Abas + atri
+        gArea_B(:, kp) = gArea_B(:, kp) + gq
+        gArea_B(:, k)  = gArea_B(:, k)  + gr
+        do j = 1, n
+          gArea_B(:, j) = gArea_B(:, j) + gp / real(n, dp)
+        end do
+
+        ! basal perimeter: plain edge length, exactly like the apical one
+        d = Barr(:, kp) - Barr(:, k)
+        edge_len = norm3(d)
+        Pbas = Pbas + edge_len
+        if (edge_len > 1.0e-14_dp) then
+          gPer_B(:, k)  = gPer_B(:, k)  - d / edge_len
+          gPer_B(:, kp) = gPer_B(:, kp) + d / edge_len
+        end if
       end do
 
       ! ---- lateral faces: quad (Ak,Bk,Bkp,Akp) split (Ak,Bk,Bkp)+(Ak,Bkp,Akp) ----
@@ -140,17 +175,21 @@ contains
         gLat_A(:, kp) = gLat_A(:, kp) + gr2
       end do
 
-      dV = V - cells(ic)%V0
-      dA = Aapi - cells(ic)%A0
+      dV    = V    - cells(ic)%V0
+      dA    = Aapi - cells(ic)%A0
+      dAbas = Abas - cells(ic)%A0_bas
 
       energy = energy + 0.5_dp * K_V * dV * dV &
                        + 0.5_dp * K_A * dA * dA &
                        + 0.5_dp * K_P * Papi * Papi &
+                       + 0.5_dp * K_A_bas * dAbas * dAbas &
+                       + 0.5_dp * K_P_bas * Pbas * Pbas &
                        + 0.5_dp * Lambda_line * Slat_total
       vol_total  = vol_total  + V
       area_total = area_total + Aapi
-      cells(ic)%V_last = V
-      cells(ic)%A_last = Aapi
+      cells(ic)%V_last     = V
+      cells(ic)%A_last     = Aapi
+      cells(ic)%A_bas_last = Abas
 
       do k = 1, n
         gvid = cells(ic)%vlist(k)
@@ -159,6 +198,8 @@ contains
                                           + K_P * Papi * gPer_A(:, k) &
                                           + 0.5_dp * Lambda_line * gLat_A(:, k) )
         f_bas(:, gvid) = f_bas(:, gvid) - ( K_V * dV * gV_B(:, k) &
+                                          + K_A_bas * dAbas * gArea_B(:, k) &
+                                          + K_P_bas * Pbas * gPer_B(:, k) &
                                           + 0.5_dp * Lambda_line * gLat_B(:, k) )
       end do
     end do

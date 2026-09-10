@@ -16,16 +16,27 @@
 !                 The shell is HOLLOW: nothing is modelled at r < R_basal.
 !
 ! Energy functional  E = Sum_cells [ (K_V/2)(V-V0)^2 + (K_A/2)(Aapi-A0)^2
-!                                    + (K_P/2) Papi^2 ]
+!                                    + (K_P/2) Papi^2
+!                                    + (K_A_bas/2)(Abas-A0_bas)^2 + (K_P_bas/2) Pbas^2 ]
 !                      + Sum_edges  Lambda_line * S_lateral(edge)
-! (V = cell volume, Aapi/Papi = apical face area/perimeter, S_lateral =
-!  area of the lateral cell-cell interface associated with an apical edge)
+! (V = cell volume, Aapi/Papi = apical face area/perimeter, Abas/Pbas =
+!  basal face area/perimeter (exact mirror of the apical terms, built
+!  from the basal shell instead), S_lateral = area of the lateral
+!  cell-cell interface associated with an apical edge)
 ! -----------------------------------------------------------------------
 ! K_V, K_A, K_P, Lambda_line : energy moduli (see Force.f90 for derivation)
+! K_A_bas, K_P_bas           : basal-face moduli, mirroring K_A, K_P.
+!                              OPTIONAL: if omitted from this file, each
+!                              defaults to its apical counterpart
+!                              (K_A_bas=K_A, K_P_bas=K_P), i.e. the basal
+!                              face behaves exactly like the apical one
+!                              unless you deliberately set it differently.
 ! V0_scale, A0_scale         : target V0 = V0_scale * (initial cell volume)
 !                              target A0 = A0_scale * (initial apical area)
 !                              (=1 means the initial geodesic mesh is the
 !                               unstrained reference shape)
+! A0_bas_scale               : target A0_bas = A0_bas_scale * (initial
+!                              basal area). OPTIONAL, defaults to A0_scale.
 !
 ! Dynamics (overdamped Langevin,  zeta * dr/dt = -dE/dr + noise)
 ! ----------------------------------------------------------------
@@ -61,8 +72,11 @@
   K_A                   = 1.0d0
   K_P                   = 0.05d0
   Lambda_line           = -0.1d0
+  K_A_bas               = 1.0d0
+  K_P_bas               = 0.05d0
   V0_scale              = 1.0d0
   A0_scale              = 1.0d0
+  A0_bas_scale          = 1.0d0
 
   zeta_friction         = 1.0d0
   kBT                   = 0.0d0

@@ -28,8 +28,10 @@ module mod_data
     logical     :: alive = .false.
     real(dp)    :: V0 = 0.0_dp           ! target volume
     real(dp)    :: A0 = 0.0_dp           ! target apical area
+    real(dp)    :: A0_bas = 0.0_dp       ! target basal area
     real(dp)    :: V_last = 0.0_dp       ! most recent computed volume (set by Force.f90)
     real(dp)    :: A_last = 0.0_dp       ! most recent computed apical area (set by Force.f90)
+    real(dp)    :: A_bas_last = 0.0_dp   ! most recent computed basal area (set by Force.f90)
   end type cell_t
 
   ! ---- global mutable state ----

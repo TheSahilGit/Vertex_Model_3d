@@ -17,6 +17,7 @@ function S = read_vertex_snapshot(fname)
 %                                 r_api/r_bas; unused slots are 0)
 %   S.cell_V0, S.cell_A0        (n_cell x 1, target volume/apical area)
 %   S.cell_Vlast, S.cell_Alast  (n_cell x 1, last computed volume/area)
+%   S.cell_A0bas, S.cell_Abaslast (n_cell x 1, target/last basal area)
 
 fid = fopen(fname, 'r', 'ieee-le');
 if fid < 0
@@ -50,15 +51,19 @@ S.cell_V0      = zeros(S.n_cell, 1);
 S.cell_A0      = zeros(S.n_cell, 1);
 S.cell_Vlast   = zeros(S.n_cell, 1);
 S.cell_Alast   = zeros(S.n_cell, 1);
+S.cell_A0bas    = zeros(S.n_cell, 1);
+S.cell_Abaslast = zeros(S.n_cell, 1);
 for i = 1:S.n_cell
     a = fread(fid, 1, 'int32');
     S.cell_alive(i) = (a ~= 0);
     S.cell_n(i) = fread(fid, 1, 'int32');
     S.cell_vlist(i, :) = fread(fid, S.MAX_SIDES, 'int32')';
-    vals = fread(fid, 4, 'float64');
+    vals = fread(fid, 6, 'float64');
     S.cell_V0(i)    = vals(1);
     S.cell_A0(i)    = vals(2);
     S.cell_Vlast(i) = vals(3);
     S.cell_Alast(i) = vals(4);
+    S.cell_A0bas(i)    = vals(5);
+    S.cell_Abaslast(i) = vals(6);
 end
 end

@@ -77,11 +77,15 @@ ylabels = {'E', 'V_{lumen}', 'A_{outer}', 'F_{max}', 'N_{cell}', 'N_{T1}', 'N_{T
 fig = figure('Color', 'w', 'Position', [100 100 1500 950]);
 for idx = 1:numel(series)
     subplot(3, 3, idx);
+    if ylabels{idx}=='E' ||  ylabels{idx}=='V'
+        loglog(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
+    else
     plot(time, series{idx}, '-', 'LineWidth', 6, 'Color', [0.15 0.35 0.75]);
+    end
     xlabel('t', 'FontSize', FONT_SIZE);
     ylabel(ylabels{idx}, 'FontSize', FONT_SIZE);
     %title(titles{idx}, 'FontSize', FONT_SIZE);
     set(gca, 'FontSize', FONT_SIZE , 'LineWidth', 4, 'FontName', 'sans');
-    grid off
+    grid 
 end
 %sgtitle('Simulation diagnostics vs time', 'FontSize', FONT_SIZE + 4, 'FontWeight', 'bold');
