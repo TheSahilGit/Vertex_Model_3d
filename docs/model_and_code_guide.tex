@@ -289,12 +289,12 @@ boundary is made of three kinds of face:
   \fill[apicalblue, opacity=0.9] (A0) \foreach \i in {1,...,5}{ -- (A\i) } -- cycle;
   \draw[thick] (A0) \foreach \i in {1,...,5}{ -- (A\i) } -- cycle;
 
-  \node[above=2pt] at (A0) {apical face};
-  \node[below right=-2pt and 2pt] at (B3) {basal face};
+  \node[above=2pt, text=apicalblue!65!black] at (A0) {\textbf{apical face}};
+  \node[below right=-2pt and 2pt, text=basalorange!65!black] at (B3) {\textbf{basal face}};
 
   \draw[<-, thick] ($(A2)!0.35!(B2)$) -- ++(-1.0,0.2) node[left, align=left, font=\scriptsize] {vertex column $j$:\\ two positions,\\ $\rvec^{\mathrm{api}}_j$ and $\rvec^{\mathrm{bas}}_j$};
 
-  \draw[<-, thick] ($(A4)!0.5!(A5)!0.5!(B4)!0.25!(B5)$) -- ++(1.0,0.4) node[right, align=left, font=\scriptsize] {lateral face\\ (one per edge)};
+  \draw[<-, thick, black!55] ($(A5)!0.6!(B5)$) -- ++(1.0,0.15) node[right, align=left, font=\scriptsize, text=black!55] {\textbf{lateral face}\\ (one per edge)};
 \end{tikzpicture}
 \captionof{figure}{One cell, drawn as the hexagonal ``drum'' it really
 is: an apical hexagon, a basal hexagon directly below it, and six
