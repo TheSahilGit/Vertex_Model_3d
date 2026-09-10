@@ -2481,4 +2481,141 @@ axis/value fixed once for the whole video. \textbf{Calls:}
 \texttt{read\_vertex\_snapshot}, \texttt{tissue\_color\_values},
 \texttt{plot\_cross\_section}.
 
+\appendix
+
+\chapter{A total-surface-area alternative energy, and why it does not reduce to the decomposed one}
+\label{app:total-surface}
+
+Section~\ref{sec:energy} builds the surface part of the energy from
+separate, independent terms for the apical area, the basal area, and
+the lateral (cell--cell) area, together with two perimeter terms. A
+natural alternative, closer in spirit to a simple liquid-droplet or
+foam model, is to penalise a cell's volume and its \emph{total}
+surface area together, with one modulus and one target for each:
+\begin{equation}
+  E_i^{\mathrm{alt}} = k\bigl(V_i - V_i^0\bigr)^2 + \bigl(S_i - S_i^0\bigr)^2, \qquad
+  S_i \equiv A_i + A_i^{\mathrm{bas}} + \Sigma_i,
+  \label{eq:alt-energy}
+\end{equation}
+where $\Sigma_i$ is cell $i$'s own total lateral-wall area -- the sum,
+over its $n$ edges, of every lateral face's area, \emph{before} the
+$\tfrac12$ relabelling of Section~\ref{sec:force-assembly} (which
+exists precisely to avoid counting each shared wall twice once summed
+over both of the cells that own it). This appendix asks a precise
+question: for some choice of moduli, does the surface term of
+Eq.~\eqref{eq:alt-energy} reduce to the same function of
+$(A_i,A_i^{\mathrm{bas}},\Sigma_i)$ as the corresponding terms of
+Eq.~\eqref{eq:energy}, namely
+$\tfrac{K_A}{2}(A_i-A_i^0)^2+\tfrac{K_A^{\mathrm{bas}}}{2}(A_i^{\mathrm{bas}}-A_i^{0,\mathrm{bas}})^2+\Lambda\,\Sigma_i$,
+up to an overall additive constant?
+
+\section*{The general quadratic form}
+Treat $(A_i, A_i^{\mathrm{bas}}, \Sigma_i)$ as three independent
+coordinates, written $\vec x=(x_1,x_2,x_3)$ for brevity. Any energy
+quadratic in these three quantities can be written
+\begin{equation}
+  E(\vec x) = \vec x^{T} M \vec x - 2\,\vec b\cdot\vec x + c
+\end{equation}
+for a symmetric $3\times3$ matrix $M$, a vector $\vec b$, and a
+constant $c$. $M$ is diagonal (every $M_{12},M_{13},M_{23}=0$) exactly
+when the three quantities are elastically independent of one another
+-- moving any one of them changes the energy with no dependence at all
+on the values of the other two.
+
+\section*{The decomposed surface energy is diagonal}
+Expanding Section~\ref{sec:energy}'s surface terms in
+$(A_i,A_i^{\mathrm{bas}},\Sigma_i)$ gives
+\begin{equation}
+  \tfrac{K_A}{2}A_i^2 + \tfrac{K_A^{\mathrm{bas}}}{2}\bigl(A_i^{\mathrm{bas}}\bigr)^2 + \Lambda\,\Sigma_i
+  \;+\; (\text{terms linear in } A_i, A_i^{\mathrm{bas}}) \;+\;\text{const},
+\end{equation}
+so its matrix is
+\begin{equation}
+  M_{\mathrm{decomp}} =
+  \begin{pmatrix} K_A/2 & 0 & 0 \\ 0 & K_A^{\mathrm{bas}}/2 & 0 \\ 0 & 0 & 0 \end{pmatrix},
+  \label{eq:M-decomp}
+\end{equation}
+diagonal, and with the $\Sigma_i$ entry itself exactly zero -- there is
+no $\Sigma_i^2$ term anywhere in Eq.~\eqref{eq:energy}, only the
+linear $\Lambda\,\Sigma_i$, which belongs to $\vec b$, not $M$.
+
+\section*{The total-surface energy is rank one}
+Expand the alternative surface term with independent weights on the
+three quantities,
+\begin{equation}
+  E_i^{\mathrm{surf}} = \bigl(w_1 A_i + w_2 A_i^{\mathrm{bas}} + w_3 \Sigma_i - S_i^0\bigr)^2,
+  \label{eq:alt-weighted}
+\end{equation}
+of which Eq.~\eqref{eq:alt-energy} is the special case
+$w_1=w_2=w_3=1$ (allowing independent weights is the most freedom a
+single squared term of this kind can be given). Its matrix is the
+outer product
+\begin{equation}
+  M_{\mathrm{surf}} = \vec w\,\vec w^{T}, \qquad \vec w=(w_1,w_2,w_3),
+  \label{eq:M-surf}
+\end{equation}
+which has rank 1 by construction. Every rank-1 matrix of this form
+satisfies, for every pair $j\neq k$,
+\begin{equation}
+  (M_{\mathrm{surf}})_{jk} = \pm\sqrt{(M_{\mathrm{surf}})_{jj}\,(M_{\mathrm{surf}})_{kk}},
+  \label{eq:rank1-identity}
+\end{equation}
+i.e. every off-diagonal entry is pinned to the geometric mean of the
+two corresponding diagonal entries. This holds for \emph{any} choice
+of $\vec w$, and remains true in any limit that keeps
+$(M_{\mathrm{surf}})_{jj}$ and $(M_{\mathrm{surf}})_{kk}$ finite and
+nonzero -- it is an algebraic identity, not an approximation.
+
+\section*{The two matrices coincide only in a degenerate case}
+Matching Eq.~\eqref{eq:M-decomp} to Eq.~\eqref{eq:M-surf} entry by
+entry requires, from the diagonal, $w_1^2=K_A/2$,
+$w_2^2=K_A^{\mathrm{bas}}/2$, and $w_3^2=0$ (so $w_3=0$). Substituting
+into the off-diagonal identity Eq.~\eqref{eq:rank1-identity} gives
+\begin{equation}
+  (M_{\mathrm{surf}})_{12} = w_1w_2 = \pm\sqrt{\tfrac{K_A}{2}\cdot\tfrac{K_A^{\mathrm{bas}}}{2}}.
+\end{equation}
+Agreement with $(M_{\mathrm{decomp}})_{12}=0$ therefore forces
+$K_A=0$ or $K_A^{\mathrm{bas}}=0$: at most one of the two faces may
+carry a nonzero area modulus. Whenever both $K_A>0$ and
+$K_A^{\mathrm{bas}}>0$ -- an apical face and a basal face that are
+\emph{both} independently elastic, the case used throughout this
+document -- no choice of $w_1,w_2,w_3$ in Eq.~\eqref{eq:alt-weighted},
+and no limit of such a choice, reduces to the decomposed surface
+energy.
+
+One particular limit is worth taking anyway, since it clarifies the
+lateral term. Sending $w_3\to0$ together with $S_i^0\to\infty$, while
+holding the product $w_3S_i^0$ fixed at a finite value $-\Lambda/2$,
+removes every term involving $\Sigma_i^2$ and every cross-term
+touching $\Sigma_i$ (each is proportional to $w_3$ or $w_3^2$),
+leaving a pure linear term $\Lambda\,\Sigma_i$ with no self-coupling
+-- exactly the lateral term of Eq.~\eqref{eq:energy}. A face with a
+fixed tension per unit area and no preferred rest area is, in this
+sense, the $K\to0$, $S^0\to\infty$, $KS^0$-fixed limit of an ordinary
+elastic term $\tfrac{K}{2}(\Sigma_i-S_i^0)^2$ -- consistent with the
+description of $\Lambda\,S_{\mathrm{lat}}$ in Section~\ref{sec:energy}
+as having no target value. But this limit only removes entries of
+$M_{\mathrm{surf}}$ that involve $w_3$; the $(1,2)$ entry, $w_1w_2$,
+does not depend on $w_3$ and survives it unchanged.
+
+\begin{physbox}
+\textbf{Conclusion.} Eq.~\eqref{eq:energy} and the total-surface-area
+energy Eq.~\eqref{eq:alt-energy} are both special cases of the same
+general quadratic energy in $(A_i, A_i^{\mathrm{bas}}, \Sigma_i)$, but
+they are special cases in genuinely different, non-overlapping ways:
+one is diagonal (every face elastically independent of every other,
+at the cost of the lateral term being demoted to a pure tension with
+no rest area), the other is rank one (a single combined
+elasticity/tension acting on the sum of all three, at the cost of
+coupling every pair of faces together with a fixed, non-adjustable
+strength $\sqrt{M_{jj}M_{kk}}$). Neither is a special or limiting case
+of the other once both the apical and the basal face are given
+independent, nonzero area moduli -- which is the case this whole
+document uses. (Eq.~\eqref{eq:alt-energy} also has no counterpart at
+all for the two perimeter-contractility terms of Eq.~\eqref{eq:energy},
+which involve the apical and basal perimeters rather than areas or
+volume; that is a separate, more basic difference that no choice of
+weights above addresses.)
+\end{physbox}
+
 \end{document}
