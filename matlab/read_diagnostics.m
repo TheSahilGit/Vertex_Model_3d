@@ -18,6 +18,10 @@ function D = read_diagnostics(fname)
 %   D.n_cells         alive cell count
 %   D.cumulative_T1   running total T1 count since t=0
 %   D.cumulative_T2   running total T2 count since t=0
+%   D.cumulative_T4            running total completed T4 extrusions since t=0
+%   D.cumulative_T4_apical     of which classified apical-ward
+%   D.cumulative_T4_basal      of which classified basal-ward
+%   D.cumulative_T4_ambiguous  of which too close to call (see T4_direction_deadband)
 
 fid = fopen(fname, 'r', 'ieee-le');
 if fid < 0
@@ -34,4 +38,8 @@ D.max_force     = fread(fid, 1, 'float64');
 D.n_cells       = fread(fid, 1, 'int32');
 D.cumulative_T1 = fread(fid, 1, 'int32');
 D.cumulative_T2 = fread(fid, 1, 'int32');
+D.cumulative_T4           = fread(fid, 1, 'int32');
+D.cumulative_T4_apical    = fread(fid, 1, 'int32');
+D.cumulative_T4_basal     = fread(fid, 1, 'int32');
+D.cumulative_T4_ambiguous = fread(fid, 1, 'int32');
 end

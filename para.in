@@ -55,6 +55,23 @@
 ! it_division_check  : how often (in steps) to scan for divisions
 ! V_division_threshold : a cell divides when V > V_division_threshold * V0
 !
+! T4_enable : switch crowding-induced live-cell extrusion on/off. A cell
+!             whose volume drops below V_extrusion_threshold * V0 is
+!             progressively whittled down by one ordinary T1 flip of its
+!             own shortest edge per it_topology_check tick (so its
+!             neighbours merge faces around it, rather than the cell
+!             collapsing to a point as in T2); once it reaches 3 sides it
+!             is removed via the same do_T2 used by ordinary T2 events.
+!             No separate cadence knob -- reuses it_topology_check.
+! V_extrusion_threshold : a cell is crowded (extrusion-eligible) when
+!             V_last < V_extrusion_threshold * V0.
+! T4_direction_deadband : extrusion direction (apical-ward vs basal-ward)
+!             is classified by comparing A_last/A0 to A_bas_last/A0_bas
+!             at the moment of removal; if the two ratios differ by less
+!             than this deadband the event is counted as
+!             direction-ambiguous rather than forced to either side.
+!             OPTIONAL, defaults to 0.05.
+!
 ! random_seed            : seed for the Langevin noise / any stochastic choices
 ! capacity_growth_factor : the cell/vertex arrays are pre-allocated at
 !                          this factor times the initial cell/vertex
@@ -90,6 +107,10 @@
   division_enable       = .false.
   it_division_check     = 500
   V_division_threshold  = 1.4d0
+
+  T4_enable             = .false.
+  V_extrusion_threshold = 0.6d0
+  T4_direction_deadband = 0.05d0
 
   random_seed            = 12345
   capacity_growth_factor = 3.0d0

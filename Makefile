@@ -16,6 +16,7 @@ SOURCES = \
   $(SRC_DIR)/Langevin_update.f90 \
   $(SRC_DIR)/T1_transition.f90 \
   $(SRC_DIR)/T2_transition.f90 \
+  $(SRC_DIR)/T4_transition.f90 \
   $(SRC_DIR)/Cell_Division.f90 \
   $(SRC_DIR)/io_module.f90 \
   $(SRC_DIR)/sanity_checks.f90 \

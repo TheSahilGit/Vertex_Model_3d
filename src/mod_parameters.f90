@@ -21,6 +21,10 @@ module mod_parameters
   integer(i4) :: it_division_check
   real(dp)    :: V_division_threshold
 
+  logical     :: T4_enable
+  real(dp)    :: V_extrusion_threshold
+  real(dp)    :: T4_direction_deadband
+
   integer(i4) :: random_seed
   real(dp)    :: capacity_growth_factor
 
@@ -35,6 +39,7 @@ contains
          zeta_friction, kBT, dt, n_steps, it_dumps, &
          L_T1_threshold, A_T2_threshold, it_topology_check, &
          division_enable, it_division_check, V_division_threshold, &
+         T4_enable, V_extrusion_threshold, T4_direction_deadband, &
          random_seed, capacity_growth_factor
 
     ! default for the one optional/newer key, in case an older
@@ -49,6 +54,12 @@ contains
     K_A_bas      = -1.0_dp
     K_P_bas      = -1.0_dp
     A0_bas_scale = -1.0_dp
+
+    ! T4_direction_deadband is the one optional T4 key (T4_enable and
+    ! V_extrusion_threshold are required, like division_enable/
+    ! V_division_threshold -- there is no sensible silent default for
+    ! "should this feature be on" or "how compressed is crowded").
+    T4_direction_deadband = -1.0_dp
 
     open(newunit=iun, file=trim(fname), status='old', action='read', iostat=ios)
     if (ios /= 0) then
@@ -66,6 +77,7 @@ contains
     if (K_A_bas      < 0.0_dp) K_A_bas      = K_A
     if (K_P_bas      < 0.0_dp) K_P_bas      = K_P
     if (A0_bas_scale < 0.0_dp) A0_bas_scale = A0_scale
+    if (T4_direction_deadband < 0.0_dp) T4_direction_deadband = 0.05_dp
 
     ! ---- sanity checks on the parameters themselves ----
     if (N_subdivision < 0 .or. N_subdivision > 6) then

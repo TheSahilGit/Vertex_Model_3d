@@ -2,9 +2,9 @@ program main
   ! 3D Vertex Model on a hollow spherical shell.
   ! See README.md for the full model description; para.in
   ! for run parameters; and the header comments of Force.f90,
-  ! T1_transition.f90, T2_transition.f90 and Cell_Division.f90 for the
-  ! derivation of the energy terms and the topological-rearrangement
-  ! rules implemented here.
+  ! T1_transition.f90, T2_transition.f90, T4_transition.f90 and
+  ! Cell_Division.f90 for the derivation of the energy terms and the
+  ! topological-rearrangement rules implemented here.
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -13,16 +13,19 @@ program main
   use mod_langevin
   use mod_T1
   use mod_T2
+  use mod_T4
   use mod_division
   use mod_io
   use mod_sanity
   implicit none
 
   integer(i4) :: it, i, n_t1, n_t2, n_div
+  integer(i4) :: n_t4_flip, n_t4, n_t4_api, n_t4_bas, n_t4_amb
   real(dp) :: energy, vol_total, area_total
   logical :: ok
   character(len=64) :: tag
   integer(i4) :: cumulative_T1, cumulative_T2
+  integer(i4) :: cumulative_T4, cumulative_T4_apical, cumulative_T4_basal, cumulative_T4_ambiguous
   real(dp) :: lumen_volume, max_force
 
   write(*,'(A)') '===================================================='
@@ -71,6 +74,10 @@ program main
 
   cumulative_T1 = 0
   cumulative_T2 = 0
+  cumulative_T4 = 0
+  cumulative_T4_apical = 0
+  cumulative_T4_basal = 0
+  cumulative_T4_ambiguous = 0
 
   call ensure_data_dir()
   call write_mesh_meta()
@@ -88,14 +95,20 @@ program main
     if (mod(it, it_topology_check) == 0) then
       call attempt_T1_transitions(n_t1)
       call attempt_T2_transitions(n_t2)
+      call attempt_T4_transitions(n_t4_flip, n_t4, n_t4_api, n_t4_bas, n_t4_amb)
       cumulative_T1 = cumulative_T1 + n_t1
       cumulative_T2 = cumulative_T2 + n_t2
-      if (n_t1 > 0 .or. n_t2 > 0) then
+      cumulative_T4           = cumulative_T4           + n_t4
+      cumulative_T4_apical    = cumulative_T4_apical    + n_t4_api
+      cumulative_T4_basal     = cumulative_T4_basal     + n_t4_bas
+      cumulative_T4_ambiguous = cumulative_T4_ambiguous + n_t4_amb
+      if (n_t1 > 0 .or. n_t2 > 0 .or. n_t4_flip > 0 .or. n_t4 > 0) then
         write(tag, '(A,I0)') 'step ', it
         call topology_check(trim(tag))
         call ring_integrity_check(trim(tag), ok)
         if (.not. ok) stop 2
-        write(*,'(A,I0,A,I0,A,I0)') '  -> T1 events: ', n_t1, '   T2 events: ', n_t2, '   n_cell(alive)=', count_alive_cells()
+        write(*,'(A,I0,A,I0,A,I0,A,I0,A,I0)') '  -> T1 events: ', n_t1, '   T2 events: ', n_t2, &
+             '   T4 flips: ', n_t4_flip, '   T4 extrusions: ', n_t4, '   n_cell(alive)=', count_alive_cells()
       end if
     end if
 
@@ -164,7 +177,9 @@ contains
     end do
 
     call write_diagnostics(it_arg, real(it_arg, dp) * dt, energy, lumen_volume, area_total, &
-                            max_force, count_alive_cells(), cumulative_T1, cumulative_T2)
+                            max_force, count_alive_cells(), cumulative_T1, cumulative_T2, &
+                            cumulative_T4, cumulative_T4_apical, cumulative_T4_basal, &
+                            cumulative_T4_ambiguous)
   end subroutine write_diagnostics_now
 
 end program main

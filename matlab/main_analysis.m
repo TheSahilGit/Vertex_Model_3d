@@ -10,6 +10,8 @@
 %   - number of (alive) cells
 %   - cumulative T1 event count
 %   - cumulative T2 event count
+%   - cumulative T4 (crowding-induced extrusion) event count, and its
+%     apical-ward / basal-ward / ambiguous breakdown
 %
 % For the tissue/cross-section VIDEOS (not this scalar time series),
 % see main_movie.m instead.
@@ -53,6 +55,10 @@ max_force     = zeros(n, 1);
 n_cells       = zeros(n, 1);
 cumulative_T1 = zeros(n, 1);
 cumulative_T2 = zeros(n, 1);
+cumulative_T4           = zeros(n, 1);
+cumulative_T4_apical    = zeros(n, 1);
+cumulative_T4_basal     = zeros(n, 1);
+cumulative_T4_ambiguous = zeros(n, 1);
 
 for k = 1:n
     D = read_diagnostics(files{k});
@@ -64,15 +70,19 @@ for k = 1:n
     n_cells(k)       = D.n_cells;
     cumulative_T1(k) = D.cumulative_T1;
     cumulative_T2(k) = D.cumulative_T2;
+    cumulative_T4(k)           = D.cumulative_T4;
+    cumulative_T4_apical(k)    = D.cumulative_T4_apical;
+    cumulative_T4_basal(k)     = D.cumulative_T4_basal;
+    cumulative_T4_ambiguous(k) = D.cumulative_T4_ambiguous;
 end
 
 fprintf('Found %d diagnostics dumps (it = %d .. %d)\n', n, its(1), its(end));
 
-series  = {energy, lumen_volume, outer_area, max_force, n_cells, cumulative_T1, cumulative_T2};
+series  = {energy, lumen_volume, outer_area, max_force, n_cells, cumulative_T1, cumulative_T2, cumulative_T4};
 titles  = {'Total energy', 'Lumen volume (hollow interior)', 'Outer surface area', ...
            'Max |force| over all vertices', 'Number of cells', ...
-           'Cumulative T1 events', 'Cumulative T2 events'};
-ylabels = {'E', 'V_{lumen}', 'A_{outer}', 'F_{max}', 'N_{cell}', 'N_{T1}', 'N_{T2}'};
+           'Cumulative T1 events', 'Cumulative T2 events', 'Cumulative T4 events'};
+ylabels = {'E', 'V_{lumen}', 'A_{outer}', 'F_{max}', 'N_{cell}', 'N_{T1}', 'N_{T2}', 'N_{T4}'};
 
 fig = figure('Color', 'w', 'Position', [100 100 1500 950]);
 for idx = 1:numel(series)
@@ -90,4 +100,18 @@ for idx = 1:numel(series)
     set(gca, 'FontSize', FONT_SIZE , 'LineWidth', 4, 'FontName', 'sans');
     grid off
 end
+
+% Slot 9: T4's apical-ward/basal-ward/ambiguous breakdown -- three lines,
+% not a single series, so handled separately from the generic loop above.
+subplot(3, 3, 9);
+loglog(time, cumulative_T4_apical, '-', 'LineWidth', 6, 'Color', [0.85 0.30 0.30]);
+hold on
+loglog(time, cumulative_T4_basal, '-', 'LineWidth', 6, 'Color', [0.30 0.55 0.85]);
+loglog(time, cumulative_T4_ambiguous, '-', 'LineWidth', 6, 'Color', [0.55 0.55 0.55]);
+hold off
+xlabel('t', 'FontSize', FONT_SIZE);
+ylabel('N_{T4}', 'FontSize', FONT_SIZE);
+legend({'apical', 'basal', 'ambiguous'}, 'FontSize', FONT_SIZE*0.5, 'Location', 'best');
+set(gca, 'FontSize', FONT_SIZE, 'LineWidth', 4, 'FontName', 'sans');
+grid off
 %sgtitle('Simulation diagnostics vs time', 'FontSize', FONT_SIZE + 4, 'FontWeight', 'bold');

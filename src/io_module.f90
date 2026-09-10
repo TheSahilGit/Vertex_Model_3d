@@ -39,6 +39,10 @@ module mod_io
   !   int32  n_cells           (alive cell count)
   !   int32  cumulative_T1     (running total T1 count since t=0)
   !   int32  cumulative_T2     (running total T2 count since t=0)
+  !   int32  cumulative_T4            (running total completed T4 extrusions since t=0)
+  !   int32  cumulative_T4_apical     (of which classified apical-ward, per T4_direction_deadband)
+  !   int32  cumulative_T4_basal      (of which classified basal-ward)
+  !   int32  cumulative_T4_ambiguous  (of which too close to call within the deadband)
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -123,10 +127,14 @@ contains
   end subroutine append_manifest
 
   subroutine write_diagnostics(it, time, energy, lumen_volume, outer_area, max_force, &
-                                n_cells, cumulative_T1, cumulative_T2)
+                                n_cells, cumulative_T1, cumulative_T2, &
+                                cumulative_T4, cumulative_T4_apical, cumulative_T4_basal, &
+                                cumulative_T4_ambiguous)
     integer(i4), intent(in) :: it
     real(dp),    intent(in) :: time, energy, lumen_volume, outer_area, max_force
     integer(i4), intent(in) :: n_cells, cumulative_T1, cumulative_T2
+    integer(i4), intent(in) :: cumulative_T4, cumulative_T4_apical
+    integer(i4), intent(in) :: cumulative_T4_basal, cumulative_T4_ambiguous
     character(len=256) :: fname
     integer :: iun
 
@@ -143,6 +151,10 @@ contains
     write(iun) n_cells
     write(iun) cumulative_T1
     write(iun) cumulative_T2
+    write(iun) cumulative_T4
+    write(iun) cumulative_T4_apical
+    write(iun) cumulative_T4_basal
+    write(iun) cumulative_T4_ambiguous
 
     close(iun)
 
