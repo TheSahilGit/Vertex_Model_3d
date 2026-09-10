@@ -192,7 +192,7 @@ end
 camlight('headlight'); lighting gouraud; material dull
 ax.CameraViewAngleMode = 'manual';  % freeze zoom AFTER Position/limits are final
 ax.FontSize = FONT_SIZE;
-ax.Toolbar.Visible = 'off';  % avoid it showing up in exported/captured frames
+ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured frames
 
 title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
 end

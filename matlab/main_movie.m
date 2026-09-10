@@ -50,7 +50,7 @@ cut_value = 0.0;                     % cross-section cutting plane offset
 %   video_its = 5000;            % just one snapshot -> a single plot
 %   video_its = [];               % every saved snapshot
 
-video_its = 100000;
+video_its = 100000
 
 video_fps = 4;                     % frames per second for saved videos
 video_dir = fullfile(project_root, 'videos');

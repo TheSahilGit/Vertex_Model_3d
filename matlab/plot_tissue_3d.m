@@ -81,7 +81,7 @@ cb = colorbar;
 cb.Label.String = cblabel;
 cb.FontSize = FONT_SIZE;
 ax.FontSize = FONT_SIZE;
-ax.Toolbar.Visible = 'off';  % avoid it showing up in exported/captured frames
+ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured frames
 
 % colorbar() auto-shrinks the axes to make room for itself based on
 % the CURRENT tick labels' width (e.g. "6" vs "-0.07" need different
