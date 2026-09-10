@@ -60,19 +60,19 @@
   K_V                   = 1.0d0
   K_A                   = 1.0d0
   K_P                   = 0.05d0
-  Lambda_line           = -0.1d0
+  Lambda_line           = 0.1d0 !-0.1d0
   V0_scale              = 1.0d0
   A0_scale              = 1.0d0
 
   zeta_friction         = 1.0d0
-  kBT                   = 0.0d0
+  kBT                   = 0.01d0
   dt                    = 1.0d-3
   n_steps               = 10000
   it_dumps              = 100
 
   L_T1_threshold        = 0.05d0
   A_T2_threshold        = 0.01d0
-  it_topology_check     = 10
+  it_topology_check     = 5
   division_enable       = .false.
   it_division_check     = 500
   V_division_threshold  = 1.4d0

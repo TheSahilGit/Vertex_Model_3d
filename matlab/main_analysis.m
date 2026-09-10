@@ -26,7 +26,7 @@ data_dir     = fullfile(project_root, 'data');
 addpath(this_dir);
 
 %% ---------------- user-configurable flags -----------------------------
-colorby = 'nsides';                 % 'nsides' | 'volume' | 'area' -- tissue colouring
+colorby = 'volume';                 % 'nsides' | 'volume' | 'area' -- tissue colouring
 
 flag_cross_section = false;        % also make the cross-section video/plot
 cut_axis  = 'y';                    % cross-section cutting axis: 'x' | 'y' | 'z'
