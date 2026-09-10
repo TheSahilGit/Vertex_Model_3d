@@ -78,7 +78,12 @@ h_api = patch('Faces', Fk, 'Vertices', S.r_api, 'FaceColor', [0.55 0.70 0.95], .
 h_bas = patch('Faces', Fk, 'Vertices', S.r_bas, 'FaceColor', [0.95 0.65 0.45], ...
       'EdgeColor', [0.1 0.1 0.1], 'LineWidth', 0.5, 'FaceAlpha', 1.0);
 
-axis equal vis3d off
+% No 'vis3d' (which freezes the camera view angle for interactive
+% rotation, not needed for a scripted, fixed-view plot/video): it was
+% found to fight with an explicit axes-Position resize in
+% plot_tissue_3d.m, unpredictably breaking the rendered size/title
+% frame to frame -- see that file's comment for the full story.
+axis equal off
 % Flat, unlit colouring on purpose: with directional lighting, cells
 % whose polygon is nearly edge-on to this viewing angle (e.g. ones
 % that straddle the cut boundary, since cells are kept/dropped by

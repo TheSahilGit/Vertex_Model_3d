@@ -15,6 +15,11 @@ function make_cross_section_video(files, cutaxis, cutvalue, outfile, fps)
 %
 % Uses the 'Motion JPEG AVI' VideoWriter profile (available on every
 % platform, unlike 'MPEG-4' which Linux MATLAB does not support).
+%
+% Frames are captured with print(fig,'-RGBImage'), not getframe -- see
+% make_tissue_video.m for why (getframe can win a race against
+% MATLAB's own renderer and grab a frame before a layout change has
+% actually been composited).
 
 if nargin < 5 || isempty(fps)
     fps = 8;
@@ -45,7 +50,9 @@ for k = 1:numel(files)
     fig.Position(3:4) = [FRAME_W FRAME_H];
     drawnow;
 
-    img = getframe(fig).cdata;
+    img = print(fig, '-RGBImage', '-r0');  % '-r0' = match the figure's own
+                                            % on-screen pixel size, not a
+                                            % fixed default DPI
     if size(img, 1) ~= FRAME_H || size(img, 2) ~= FRAME_W
         img = imresize(img, [FRAME_H, FRAME_W]);
     end

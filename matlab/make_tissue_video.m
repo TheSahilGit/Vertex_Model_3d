@@ -29,6 +29,15 @@ function make_tissue_video(files, colorby, outfile, fps)
 % practice (a colorbar tick label gaining/losing a digit can shift the
 % rendered axes by a pixel) -- so this resize is a cheap, load-bearing
 % safety net, not a cosmetic touch.
+%
+% Frames are captured with print(fig,'-RGBImage'), not getframe: the
+% latter grabs whatever is in the figure's frame buffer at that instant
+% and is well known to sometimes win the race against MATLAB's own
+% renderer -- observed here as the title or the fixed axes/colorbar
+% layout (both applied inside plot_tissue_3d.m) missing from a
+% frame's capture even though drawnow had already been called.
+% print(...,'-RGBImage') renders synchronously (the same pipeline used
+% for file export) and does not have that race.
 
 if nargin < 4 || isempty(fps)
     fps = 8;
@@ -71,7 +80,11 @@ for k = 1:numel(Sall)
     fig.Position(3:4) = [FRAME_W FRAME_H];
     drawnow;
 
-    img = getframe(fig).cdata;
+    img = print(fig, '-RGBImage', '-r0');  % '-r0' = match the figure's own
+                                            % on-screen pixel size, not a
+                                            % fixed default DPI (which
+                                            % otherwise returns an image at
+                                            % the wrong scale entirely)
     if size(img, 1) ~= FRAME_H || size(img, 2) ~= FRAME_W
         img = imresize(img, [FRAME_H, FRAME_W]);
     end

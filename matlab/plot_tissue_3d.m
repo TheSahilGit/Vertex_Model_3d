@@ -30,7 +30,6 @@ clim_in = p.Results.CLim;
 FONT_SIZE   = 26;  % ~2.5x the MATLAB default (10), per user request
 TITLE_SIZE  = 30;
 
-idx = find(S.cell_alive);
 F = cell_faces_matrix(S);
 [cval, cblabel] = tissue_color_values(S, colorby);
 
@@ -46,8 +45,9 @@ patch('Faces', F, 'Vertices', S.r_api, ...
       'FaceVertexCData', cval, 'FaceColor', 'flat', ...
       'EdgeColor', [0.15 0.15 0.15], 'LineWidth', 0.5);
 
-axis equal vis3d off
-view(35, 20)
+ax = gca;
+axis(ax, 'equal'); axis(ax, 'off');
+view(ax, 35, 20)
 camlight('headlight'); lighting gouraud; material dull
 colormap(parula)
 
@@ -62,8 +62,25 @@ end
 cb = colorbar;
 cb.Label.String = cblabel;
 cb.FontSize = FONT_SIZE;
+ax.FontSize = FONT_SIZE;
 
-set(gca, 'FontSize', FONT_SIZE);
-% title(sprintf('Tissue at step %d  (t = %.4g),  N_{cell} = %d', ...
-%       S.it, S.time, numel(idx)), 'FontSize', TITLE_SIZE); %#ok<UNRCH>
+% colorbar() auto-shrinks the axes to make room for itself based on
+% the CURRENT tick labels' width (e.g. "6" vs "-0.07" need different
+% widths); fix both explicitly (normalized units) so the rendered
+% sphere sits in the exact same box on every frame regardless of that.
+%
+% NOTE: this only reliably takes effect with 'vis3d' NOT set on the
+% axes (see above). 'axis vis3d' freezes CameraViewAngle for
+% interactive rotation, and doing that BEFORE resizing Position here
+% left the two fighting each other unpredictably -- observed as the
+% rendered sphere randomly larger/smaller and even the title going
+% missing, frame to frame, with no other change and no error. We don't
+% need interactive rotation for a scripted, fixed-view video/plot, so
+% it's simply left off rather than juggling the two.
+ax.Units = 'normalized';
+ax.Position = [0.03 0.06 0.72 0.88];
+cb.Units = 'normalized';
+cb.Position = [0.80 0.12 0.045 0.76];
+
+title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
 end
