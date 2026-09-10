@@ -294,7 +294,7 @@ boundary is made of three kinds of face:
 
   \draw[<-, thick] ($(A2)!0.35!(B2)$) -- ++(-1.0,0.2) node[left, align=left, font=\scriptsize] {vertex column $j$:\\ two positions,\\ $\rvec^{\mathrm{api}}_j$ and $\rvec^{\mathrm{bas}}_j$};
 
-  \draw[<-, thick] ($(A1)!0.55!(B1)$) -- ++(-1.15,0.75) node[above left, align=right, font=\scriptsize] {lateral face\\ (one per edge)};
+  \draw[<-, thick] ($(A4)!0.5!(A5)!0.5!(B4)!0.25!(B5)$) -- ++(1.0,0.4) node[right, align=left, font=\scriptsize] {lateral face\\ (one per edge)};
 \end{tikzpicture}
 \captionof{figure}{One cell, drawn as the hexagonal ``drum'' it really
 is: an apical hexagon, a basal hexagon directly below it, and six
@@ -2511,8 +2511,12 @@ up to an overall additive constant?
 
 \section*{The general quadratic form}
 Treat $(A_i, A_i^{\mathrm{bas}}, \Sigma_i)$ as three independent
-coordinates, written $\vec x=(x_1,x_2,x_3)$ for brevity. Any energy
-quadratic in these three quantities can be written
+coordinates, collected into a single vector for brevity:
+\begin{equation}
+  \vec x \equiv (x_1,x_2,x_3)^T \equiv \bigl(A_i,\, A_i^{\mathrm{bas}},\, \Sigma_i\bigr)^T .
+  \label{eq:xvec-def}
+\end{equation}
+Any energy quadratic in these three quantities can be written
 \begin{equation}
   E(\vec x) = \vec x^{T} M \vec x - 2\,\vec b\cdot\vec x + c
 \end{equation}
@@ -2551,7 +2555,7 @@ $w_1=w_2=w_3=1$ (allowing independent weights is the most freedom a
 single squared term of this kind can be given). Its matrix is the
 outer product
 \begin{equation}
-  M_{\mathrm{surf}} = \vec w\,\vec w^{T}, \qquad \vec w=(w_1,w_2,w_3),
+  M_{\mathrm{surf}} = \vec w\,\vec w^{T}, \qquad \vec w \equiv (w_1,w_2,w_3)^T,
   \label{eq:M-surf}
 \end{equation}
 which has rank 1 by construction. Every rank-1 matrix of this form
