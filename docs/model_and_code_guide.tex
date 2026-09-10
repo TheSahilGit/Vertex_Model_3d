@@ -2513,7 +2513,10 @@ up to an overall additive constant?
 Treat $(A_i, A_i^{\mathrm{bas}}, \Sigma_i)$ as three independent
 coordinates, collected into a single vector for brevity:
 \begin{equation}
-  \vec x \equiv (x_1,x_2,x_3)^T \equiv \bigl(A_i,\, A_i^{\mathrm{bas}},\, \Sigma_i\bigr)^T .
+  \vec x \equiv
+  \begin{pmatrix} x_1 \\ x_2 \\ x_3 \end{pmatrix}
+  \equiv
+  \begin{pmatrix} A_i \\ A_i^{\mathrm{bas}} \\ \Sigma_i \end{pmatrix} .
   \label{eq:xvec-def}
 \end{equation}
 Any energy quadratic in these three quantities can be written
@@ -2555,7 +2558,8 @@ $w_1=w_2=w_3=1$ (allowing independent weights is the most freedom a
 single squared term of this kind can be given). Its matrix is the
 outer product
 \begin{equation}
-  M_{\mathrm{surf}} = \vec w\,\vec w^{T}, \qquad \vec w \equiv (w_1,w_2,w_3)^T,
+  M_{\mathrm{surf}} = \vec w\,\vec w^{T}, \qquad
+  \vec w \equiv \begin{pmatrix} w_1 \\ w_2 \\ w_3 \end{pmatrix},
   \label{eq:M-surf}
 \end{equation}
 which has rank 1 by construction. Every rank-1 matrix of this form
