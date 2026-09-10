@@ -1,0 +1,8 @@
+% mesh_meta.txt -- metadata for Analysis_Code_Matlab (key value)
+MAX_SIDES 16
+R_apical   1.00000000E+01
+R_basal   9.50000000E+00
+dt   1.00000000E-03
+it_dumps 100
+n_cell_init 162
+n_vert_init 320
