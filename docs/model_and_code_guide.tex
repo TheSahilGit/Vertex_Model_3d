@@ -1789,6 +1789,137 @@ afterwards (\texttt{main\_analysis.m}) -- no per-cell history is kept,
 only these four whole-tissue totals.
 \end{physbox}
 
+\subsection{The defect-cell protocol: reproducing apical extrusion of abnormal cells}
+\label{sec:defect}
+
+\textbf{Biology.} A phenomenon distinct from ordinary crowding
+(Section~\ref{sec:T4}): when a single cell in an otherwise healthy
+epithelium becomes genetically abnormal (e.g.\ an oncogene turns on),
+its normal neighbours often recognise it and actively extrude it from
+the sheet -- and, characteristically, \emph{apically} (out through the
+outer surface), the well-documented ``epithelial defense against
+cancer'' (EDAC) response. This is optional and off by default
+(\texttt{defect\_enable}, \texttt{para.in}).
+
+\textbf{Mechanism: seed once, then let T4 do the removing.} Once,
+right after \texttt{init\_mesh} sets the usual
+$V^0,A^0,A^{0,\mathrm{bas}}$ targets, a random
+\texttt{defect\_fraction} of the alive cells are marked
+\texttt{is\_defect} and given one or more mechanical differences from
+the rest of the tissue (the three levers below). No separate removal
+mechanism is added: a defect cell becomes crowded and gets extruded
+through the exact same T4 machinery (Section~\ref{sec:T4}) as any
+other cell -- \texttt{attempt\_T4\_transitions} additionally checks,
+for every completed removal, whether the removed cell was one of the
+seeded defect cells, and if so tallies its direction too, giving four
+extra running totals (\texttt{cumulative\_T4\_defect} and its own
+apical/basal/ambiguous breakdown) alongside the ordinary tissue-wide
+ones.
+
+\textbf{Three independent levers, each defaulting to a no-op.} All
+three can be used alone or in any combination; \texttt{para.in}
+documents the exact defaults.
+\begin{enumerate}
+  \item \texttt{Lambda\_line\_defect} -- gives a defect cell its own
+  lateral-tension modulus (\texttt{cells(:)\%lambda\_own},
+  Section~\ref{sec:mod-data-code}) instead of the tissue-wide
+  \texttt{Lambda\_line}. Since a shared edge's real tension is the
+  \emph{average} of its two owning cells' own values
+  (Section~\ref{sec:force-code}), this is a strict generalisation:
+  with every cell's \texttt{lambda\_own} equal to \texttt{Lambda\_line}
+  (the default), \texttt{Force.f90} computes exactly what it always did.
+  \item \texttt{defect\_A0\_bas\_scale} -- scales a defect cell's own
+  basal-area target ($A_i^{0,\mathrm{bas}}$) by this extra factor,
+  representing loss of basal identity/polarity (a documented feature of
+  many transformed epithelial cells, independent of adhesion). Unlike
+  lever 1, this is a direct, targeted force on the basal face alone,
+  with $\Lambda$ and the apical target left untouched for every cell.
+  \item \texttt{defect\_boundary\_tension} -- an extra lateral tension
+  added \emph{only} on edges connecting a defect cell to a non-defect
+  neighbour (a heterotypic interface): the literal actomyosin
+  ``purse-string'' mechanism reported for real EDAC. Identifying which
+  edges are heterotypic needs to know the neighbour across every edge,
+  which \texttt{edge\_cells} (Section~\ref{sec:mod-topology}) could
+  answer but at $O(n_{\mathrm{cell}})$ \emph{per edge} -- too slow for
+  \texttt{compute\_forces}, called every step. \texttt{Force.f90}
+  instead builds a cheap $O(n_{\mathrm{cell}})$-\emph{total}
+  vertex-to-cell cache once per call, only when this lever is active
+  (\texttt{build\_vertex\_incidence}/\texttt{neighbor\_across\_edge},
+  Section~\ref{sec:mod-topology}), and looks the neighbour up in that
+  instead.
+\end{enumerate}
+
+\begin{physbox}
+\textbf{Which lever actually reproduces the real phenomenon -- checked
+directly against a running simulation, not assumed.} All three were
+tested the same way: seed a handful of cells, watch whether they get
+selectively removed and which direction they favour.
+\begin{itemize}[leftmargin=1.4em]
+  \item Lever 1 needs a \emph{higher} own lateral tension than the rest
+  of the tissue to get crowded at all -- a cell's own lambda dominates
+  its own self-compression, so a \emph{lower} own lambda relaxes to a
+  \emph{larger} volume, the opposite of ``weak and squeezed''. Once
+  crowded this way, its exit direction came out mixed/basal-leaning
+  across every combination tried -- \emph{not} the real phenomenon's
+  apical bias.
+  \item Lever 3 behaves almost identically to lever 1 in practice,
+  exactly as expected from how sparsely defect cells are normally
+  seeded: most of a defect cell's own edges already border a normal
+  neighbour, so ``boundary-only'' tension and ``own-cell'' tension act
+  on nearly the same edges. Same basal-leaning outcome.
+  \item Lever 2 is the one that works: it gives both preferential
+  removal (defect cells consistently die off faster, relative to their
+  population share, than the rest of the tissue) \emph{and} a genuine
+  apical-majority exit direction ($\sim$60\% apical across the
+  parameter combinations tried) -- the lever that actually reproduces
+  the real phenomenon, and the one documented as recommended in
+  \texttt{para.in}.
+\end{itemize}
+A caveat true of all three: at the mesh sizes exercised while building
+this feature, once T4 activity starts at all it has consistently
+cascaded to full tissue loss rather than settling into a steady ``a
+few cells culled, the rest of the tissue fine forever'' state -- the
+statistics above are read from well before the bulk tissue starts
+dying, not from a genuinely steady state. No threshold tried avoided
+the eventual collapse; a larger mesh or a little thermal noise are the
+likeliest fixes if a non-collapsing demonstration is wanted.
+\end{physbox}
+
+\subsection{A subtlety when changing mesh resolution: $\Lambda$ and $K_P$ do not scale themselves}
+\label{sec:resolution-scaling}
+A parameter set validated at one \texttt{N\_subdivision} is not
+automatically valid at another -- checked directly, not assumed, while
+testing the defect-cell protocol on a finer mesh. \texttt{Lambda\_line}
+and \texttt{K\_P}/\texttt{K\_P\_bas} are \emph{bare} terms with no rest
+length (Section~\ref{sec:energy}: shorter/less area is always
+energetically better, unlike $K_V$/$K_A$/$K_A^{\mathrm{bas}}$, which
+resist moving away from a target in \emph{either} direction). A bare
+term's restoring force at a given fractional deviation scales
+differently with a cell's own linear size than a targeted term's does,
+so the \emph{same} modulus value does not produce the same physical
+behaviour (the same equilibrium closeness to $V^0$/$A^0$) at a
+different mesh resolution.
+
+Concretely: a parameter set that held a 162-cell mesh
+($N_{\mathrm{subdivision}}=2$) at $V_{\mathrm{last}}/V^0\approx0.98$
+with no defects and no noise left a 642-cell mesh
+($N_{\mathrm{subdivision}}=3$) sitting at $V_{\mathrm{last}}/V^0\approx0.87$
+under the unchanged \texttt{Lambda\_line} alone -- confirmed by sweeping
+\texttt{Lambda\_line} at fixed $K_P$/$K_P^{\mathrm{bas}}$ and watching
+that equilibrium ratio move continuously back toward 1 as
+\texttt{Lambda\_line} was reduced, while sweeping $K_P$/$K_P^{\mathrm{bas}}$
+alone (at the original \texttt{Lambda\_line}) barely moved it at all --
+i.e.\ \texttt{Lambda\_line} was the dominant driver in that specific
+case, not $K_P$. Rescaling \texttt{Lambda\_line} down (roughly by the
+same factor the mesh got finer) restored the original mesh's own
+equilibrium ratio. The practical takeaway: after changing
+\texttt{N\_subdivision}, re-check that a defect-free, noise-free run
+actually settles near $V_{\mathrm{last}}/V^0\approx1$ (e.g.\ by
+watching \texttt{lumen\_volume}/\texttt{outer\_area} in
+\texttt{diag\_<it>.dat} flatten out, rather than keep drifting, over
+the first several thousand steps) before trusting any comparison
+against a run at a different resolution.
+
 \section{Sanity checks and worked benchmarks}
 \label{sec:code-sanity}
 
@@ -1931,10 +2062,10 @@ for tree={
   [{README.md}]
   [{para.in}]
   [{Makefile}]
-  [{src/ \textrm{\normalfont\itshape\small\ -- 15 files, the Fortran engine, Sec.~\ref{sec:src-code}}}]
+  [{src/ \textrm{\normalfont\itshape\small\ -- 16 files, the Fortran engine, Sec.~\ref{sec:src-code}}}]
   [{build/}]
   [{data/ \textrm{\normalfont\itshape\small\ -- snap\_/diag\_ output + example/}}]
-  [{matlab/ \textrm{\normalfont\itshape\small\ -- 14 files, analysis \& plotting, Sec.~\ref{sec:matlab-code}}}]
+  [{matlab/ \textrm{\normalfont\itshape\small\ -- 16 files, analysis \& plotting, Sec.~\ref{sec:matlab-code}}}]
   [{videos/}]
   [{docs/}]
 ]
@@ -1954,7 +2085,8 @@ automatically and are not stored in version control.}
 mod\_kinds.f90\\ mod\_parameters.f90\\ mod\_data.f90\\
 mod\_geometry.f90\\ mod\_topology.f90\\ mesh\_init.f90\\
 Force.f90\\ Langevin\_update.f90\\ T1\_transition.f90\\
-T2\_transition.f90\\ T4\_transition.f90\\ Cell\_Division.f90\\
+T2\_transition.f90\\ T4\_transition.f90\\ mod\_defect.f90\\
+Cell\_Division.f90\\
 io\_module.f90\\ sanity\_checks.f90\\ main.f90
 \end{tabular}}
 \end{minipage}%
@@ -1967,6 +2099,7 @@ read\_mesh\_meta.m\\
 list\_snapshots.m \ \ list\_diagnostics.m\\
 select\_snapshots.m\\
 cell\_faces\_matrix.m \ \ tissue\_color\_values.m\\
+cell\_lateral\_area.m \ \ ring\_planes\_for\_location.m\\
 plot\_tissue\_3d.m \ \ plot\_cross\_section.m\\
 make\_tissue\_video.m\\
 make\_cross\_section\_video.m
@@ -1976,7 +2109,7 @@ make\_cross\_section\_video.m
 
 \section{The Fortran engine (\texttt{src/})}
 \label{sec:src-code}
-The 15 source files are compiled in a strict dependency order (each
+The 16 source files are compiled in a strict dependency order (each
 Fortran \texttt{module} must be compiled before anything that
 \texttt{use}s it) -- this order is also, conveniently, close to the
 most natural \emph{reading} order, going from the most low-level/generic
@@ -1986,11 +2119,15 @@ building blocks up to the program that ties everything together:
 \texttt{mod\_topology} $\rightarrow$ \texttt{mesh\_init} $\rightarrow$
 \texttt{Force} $\rightarrow$ \texttt{Langevin\_update} $\rightarrow$
 \texttt{T1\_transition} $\rightarrow$ \texttt{T2\_transition}
-$\rightarrow$ \texttt{T4\_transition} $\rightarrow$ \texttt{Cell\_Division}
+$\rightarrow$ \texttt{T4\_transition} $\rightarrow$ \texttt{mod\_defect}
+$\rightarrow$ \texttt{Cell\_Division}
 $\rightarrow$ \texttt{io\_module} $\rightarrow$ \texttt{sanity\_checks}
 $\rightarrow$ \texttt{main}. (\texttt{T4\_transition} must follow both
 \texttt{T1\_transition} and \texttt{T2\_transition}, since it calls
-into each of them directly -- see below.)
+into each of them directly -- see below. \texttt{mod\_defect} only
+needs \texttt{mod\_parameters}/\texttt{mod\_data}, so its position
+right after \texttt{T4\_transition} and before \texttt{Cell\_Division}
+is not load-bearing -- it just keeps every T4-adjacent file together.)
 
 \subsection{\texttt{mod\_kinds.f90} -- numeric precision}
 The entire codebase works in one consistent numeric precision, defined
@@ -2043,7 +2180,20 @@ contrast, are \emph{required} keys with no default at all, exactly like
 no sensible silent default for ``should this feature be on'' or ``how
 compressed counts as crowded''.
 
+The defect-cell protocol (Section~\ref{sec:defect}) adds five more
+keys: \texttt{defect\_enable} and \texttt{defect\_fraction} are
+required (same reasoning as \texttt{T4\_enable} above);
+\texttt{Lambda\_line\_defect} gets the negative-sentinel treatment too,
+defaulting to plain \texttt{Lambda\_line} (no adhesion difference) if
+omitted; \texttt{defect\_A0\_bas\_scale} and
+\texttt{defect\_boundary\_tension} default directly to \texttt{1.0}
+and \texttt{0.0} respectively (no sentinel dance needed -- those literal
+values already mean ``no effect'', unlike \texttt{Lambda\_line\_defect},
+whose off-value depends on whatever \texttt{Lambda\_line} itself is
+set to).
+
 \subsection{\texttt{mod\_data.f90} -- the core data structures}
+\label{sec:mod-data-code}
 This file defines the two central data structures literally everything
 else in the code operates on.
 
@@ -2058,7 +2208,15 @@ other cells' stored ids into the array stay valid), and its target
 volume/apical-area/basal-area and most-recently-computed
 volume/apical-area/basal-area
 ($V^0,A^0,A^{0,\mathrm{bas}},V,A_{\mathrm{api}},A_{\mathrm{bas}}$ as
-\texttt{V0, A0, A0\_bas, V\_last, A\_last, A\_bas\_last}).
+\texttt{V0, A0, A0\_bas, V\_last, A\_last, A\_bas\_last}). Two more
+fields exist purely for the defect-cell protocol
+(Section~\ref{sec:defect}): \texttt{lambda\_own}, this cell's own
+lateral-tension modulus (every cell gets \texttt{Lambda\_line} by
+default at build time, \texttt{mesh\_init.f90}; only a seeded defect
+cell's copy is ever changed, and only via lever~1), and
+\texttt{is\_defect}, a permanent diagnostic tag set once at seeding
+time and otherwise never touched except by \texttt{Cell\_Division.f90}
+(a dividing cell's daughters inherit both fields from their parent).
 
 \paragraph{The global vertex/cell arrays.} Every vertex column's apical
 and basal positions ($\rvec_{\mathrm{api}}, \rvec_{\mathrm{bas}}$ as
@@ -2208,6 +2366,24 @@ fundamental topological invariant this whole mesh must always satisfy,
 checked after every batch of T1/T2/division events (via
 \texttt{topology\_check} in \texttt{sanity\_checks.f90}, Section
 \ref{sec:mod-sanity}). \textbf{Calls:} \texttt{count\_alive\_verts}.
+\paragraph{Cheap vertex-to-cell cache
+(\texttt{build\_vertex\_incidence}, \texttt{neighbor\_across\_edge}).}
+Added for the defect-cell protocol's \texttt{defect\_boundary\_tension}
+lever (Section~\ref{sec:defect}), which needs to know the neighbouring
+cell across every one of a cell's own edges, every single step -- too
+often to afford \texttt{edge\_cells}' $O(n_{\mathrm{cell}})$-per-edge
+cost. \textbf{\texttt{build\_vertex\_incidence}} loops over every alive
+cell once ($O(n_{\mathrm{cell}}\times\texttt{MAX\_SIDES})$ total, the
+same order as the rest of \texttt{compute\_forces}) filling
+\texttt{vic(1:3,v)}, up to 3 owning cell ids per vertex column $v$
+(\texttt{vic\_count(v)} how many). \textbf{\texttt{neighbor\_across\_edge}}
+then takes a cell id and its own edge \texttt{(v1,v2)} and returns the
+\emph{other} cell owning that edge (0 if not found) by intersecting
+\texttt{vic(:,v1)} and \texttt{vic(:,v2)} -- at most $3\times3$
+comparisons, effectively $O(1)$ once the cache is built. \texttt{Force.f90}
+builds this cache once per \texttt{compute\_forces} call, and only when
+\texttt{defect\_boundary\_tension} is actually non-zero, so it costs
+nothing when the lever is off.
 
 \subsection{\texttt{mesh\_init.f90} -- building the starting tissue}
 \label{sec:mesh-init-code}
@@ -2272,8 +2448,13 @@ it (\texttt{inc}, count \texttt{deg}). \textbf{Output:} none directly
 angular (cyclic) order around \texttt{vhat} (by projecting each
 candidate dual-vertex position onto the local tangent plane and
 sorting by $\mathrm{atan2}$), then checks the resulting fan's normal
-and flips it if it points inward. \textbf{Calls:} \texttt{cross},
-\texttt{norm3}, \texttt{reverse\_ring}.
+and flips it if it points inward. Also sets this cell's
+\texttt{lambda\_own} to plain \texttt{Lambda\_line} and
+\texttt{is\_defect} to \texttt{.false.} here (Section~\ref{sec:mod-data-code}) --
+the sane default every cell gets, before \texttt{mod\_defect.f90}'s
+\texttt{seed\_defect\_cells} (Section~\ref{sec:defect}) optionally
+overrides it for a random subset, later, once the mesh already exists.
+\textbf{Calls:} \texttt{cross}, \texttt{norm3}, \texttt{reverse\_ring}.
 \paragraph{Reverses a ring's order (\texttt{reverse\_ring}).}
 \textbf{Input:} \texttt{icell}. \textbf{Output:} none (reverses
 \texttt{vlist(1:n)} in place). \textbf{Calls:} none.
@@ -2286,6 +2467,7 @@ geodesic icosahedral mesh, Section~\ref{sec:mesh-build}). \textbf{Calls:}
 none.
 
 \subsection{\texttt{Force.f90} -- the energy and force engine}
+\label{sec:force-code}
 Section~\ref{sec:forces} already derived every line of this file in
 full; this entry is a short pointer back, focused on inputs/outputs.
 \paragraph{Computes the energy and every force
@@ -2303,6 +2485,27 @@ cells(:)\%A\_last, cells(:)\%A\_bas\_last}, later used by
 \textbf{Calls:} \texttt{centroid\_n},
 \texttt{tetra\_vol\_grad}, \texttt{tri\_area\_grad}, \texttt{norm3}
 -- called once per time step, before \texttt{langevin\_step}.
+
+The lateral-tension term (Section~\ref{sec:lateral-walls}) is the one
+piece that changed for the defect-cell protocol
+(Section~\ref{sec:defect}): every lateral face is now weighted by a
+per-\emph{face} value \texttt{w\_lat}, computed fresh for each of a
+cell's own edges, instead of the single per-cell \texttt{Lambda\_line}
+used everywhere before this feature existed. \texttt{w\_lat} starts as
+that cell's own \texttt{cells(ic)\%lambda\_own} (equal to
+\texttt{Lambda\_line} for every cell unless lever~1 changed it for a
+seeded subset), and, only when \texttt{defect\_boundary\_tension} is
+non-zero, gets \texttt{defect\_boundary\_tension} added on top for any
+edge whose neighbour (\texttt{neighbor\_across\_edge}, just above) has
+a different \texttt{is\_defect} value from this cell's own (lever~3).
+Since both of a shared edge's owning cells compute their own
+\texttt{w\_lat} independently and each contributes \texttt{w\_lat}$/2$,
+a shared edge's real total tension is the \emph{average} of its two
+cells' own values (plus the boundary bonus, once, if it applies) --
+with no defects seeded this reduces exactly to plain
+\texttt{Lambda\_line} for every edge, bit-for-bit identical to the
+code before this feature (checked directly, side by side against the
+previous commit).
 \paragraph{Computes the lumen volume
 (\texttt{compute\_lumen\_volume}).} \textbf{Input:} none directly (reads
 \texttt{r\_bas}). \textbf{Output:} \texttt{lumen\_volume}, the volume
@@ -2411,9 +2614,14 @@ of its own.
 \texttt{V\_extrusion\_threshold}; does nothing at all if
 \texttt{T4\_enable} is false). \textbf{Outputs:} \texttt{n\_flips} (how
 many cells had one edge flipped this tick), \texttt{n\_extruded} (how
-many completed removals), and \texttt{n\_extruded\_apical,
+many completed removals), \texttt{n\_extruded\_apical,
 n\_extruded\_basal, n\_extruded\_ambiguous} (that same completed-removal
-count broken down by direction, Section~\ref{sec:T4}). \textbf{Calls:}
+count broken down by direction, Section~\ref{sec:T4}), and
+\texttt{n\_extruded\_defect, n\_extruded\_defect\_apical,
+n\_extruded\_defect\_basal, n\_extruded\_defect\_ambiguous} (the same
+two breakdowns again, but counting only cells seeded
+\texttt{is\_defect} by the defect-cell protocol, Section~\ref{sec:defect}
+-- read just before \texttt{do\_T2} clears that slot). \textbf{Calls:}
 \texttt{shortest\_own\_edge}, \texttt{try\_T1\_edge} (for a still-large
 crowded cell), \texttt{classify\_T4\_direction}, \texttt{do\_T2} (for
 one already at 3 sides). Uses a local \texttt{touched(:)} array
@@ -2438,6 +2646,40 @@ still reflect its final compressed shape and this step's forces).
 \texttt{T4\_DIR\_AMBIGUOUS}, via the deadbanded comparison of the two
 rings' net resultant radial force, Eq.~\ref{eq:T4-direction-forces}.
 \textbf{Calls:} \texttt{norm3}.
+
+\subsection{\texttt{mod\_defect.f90} -- the defect-cell protocol}
+\label{sec:mod-defect-code}
+Section~\ref{sec:defect} already derived this module's physics and its
+three levers in full. With \texttt{defect\_enable} false (the default)
+every routine here is a no-op and \texttt{Force.f90} behaves exactly as
+it always did.
+\paragraph{Seeds a random subset of cells (\texttt{seed\_defect\_cells}).}
+\textbf{Input:} none directly (reads \texttt{defect\_fraction,
+Lambda\_line\_defect, defect\_A0\_bas\_scale} from
+\texttt{mod\_parameters}; does nothing if \texttt{defect\_enable} is
+false). \textbf{Output:} \texttt{n\_seeded}, how many cells were
+actually marked. Picks
+$\lceil\texttt{defect\_fraction}\times n_{\mathrm{alive}}\rceil$ cells
+uniformly at random via a partial Fisher--Yates shuffle of the
+alive-cell index list (using the same Fortran random-number stream
+already seeded by \texttt{init\_rng}), then for each one sets
+\texttt{lambda\_own} to \texttt{Lambda\_line\_defect} (lever~1) and
+scales \texttt{A0\_bas} by \texttt{defect\_A0\_bas\_scale} (lever~2)
+before finally marking \texttt{is\_defect=.true.} \textbf{Calls:} the
+intrinsic \texttt{random\_number}. Called exactly once, from
+\texttt{main.f90}, right after the usual $V^0,A^0,A^{0,\mathrm{bas}}$
+targets are set and before the very first real time step (lever~3,
+\texttt{defect\_boundary\_tension}, needs no per-cell state here at
+all -- it is applied live inside \texttt{Force.f90},
+Section~\ref{sec:force-code}, keyed purely off \texttt{is\_defect}).
+\paragraph{Counts surviving defect cells
+(\texttt{count\_alive\_defect\_cells}).} \textbf{Input:} none (reads
+global state). \textbf{Output:} how many seeded cells are both
+\texttt{alive} and \texttt{is\_defect} right now -- an
+\emph{instantaneous} count, unlike the cumulative T4 totals, written to
+every \texttt{diag\_<it>.dat} dump (Section~\ref{sec:io-module-code}) so
+a run's defect population over time can be read straight off the
+diagnostics. \textbf{Calls:} none.
 
 \subsection{\texttt{Cell\_Division.f90} -- cell division}
 Section~\ref{sec:division} already derived this file's algorithm in
@@ -2464,6 +2706,12 @@ daughters inherit half of the parent's target volume \emph{and} target
 apical \emph{and} basal area (\texttt{V0, A0, A0\_bas} all
 halved) -- so neither daughter starts under artificial elastic stress
 on either face from suddenly being half the size of its own target.
+Both also inherit the parent's \texttt{lambda\_own} and
+\texttt{is\_defect} unchanged (Section~\ref{sec:defect}) -- the parent's
+own cell slot keeps its own values automatically (it is simply
+relabelled as one daughter), so only the freshly allocated second
+daughter needs them copied across explicitly; a defect cell's whole
+lineage stays defective.
 
 \subsection{\texttt{io\_module.f90} -- binary output}
 \label{sec:io-module-code}
@@ -2506,12 +2754,17 @@ manifest is somehow missing). \textbf{Calls:} none.
 energy, lumen\_volume, outer\_area, max\_force, n\_cells,
 cumulative\_T1, cumulative\_T2, cumulative\_T4,
 cumulative\_T4\_apical, cumulative\_T4\_basal,
-cumulative\_T4\_ambiguous} -- every scalar diagnostic already
-computed by the caller (\texttt{write\_diagnostics\_now} in
-\texttt{main.f90}). \textbf{Output:} \texttt{data/diag\_<it>.dat}, a
-small stream/unformatted binary file with exactly those 9 values, in
-that order. \textbf{Calls:} \texttt{append\_diag\_manifest}. Called
-once per dump, immediately after \texttt{write\_snapshot}.
+cumulative\_T4\_ambiguous, n\_defect\_seeded, n\_defect\_alive,
+cumulative\_T4\_defect, cumulative\_T4\_defect\_apical,
+cumulative\_T4\_defect\_basal, cumulative\_T4\_defect\_ambiguous} --
+every scalar diagnostic already computed by the caller
+(\texttt{write\_diagnostics\_now} in \texttt{main.f90}; the six defect
+fields, Section~\ref{sec:defect}, are purely additive, appended at the
+end when that feature was built). \textbf{Output:}
+\texttt{data/diag\_<it>.dat}, a small stream/unformatted binary file
+with exactly those 19 values, in that order. \textbf{Calls:}
+\texttt{append\_diag\_manifest}. Called once per dump, immediately
+after \texttt{write\_snapshot}.
 \paragraph{Records one diagnostics dump in its manifest
 (\texttt{append\_diag\_manifest}).} Exactly mirrors
 \texttt{append\_manifest} above, but for
@@ -2595,7 +2848,13 @@ direct translation of the physics into control flow:
   \emph{is} its own unstrained reference shape, so the volume and
   apical-/basal-area elastic energy all start at exactly zero, leaving
   only the lateral-tension and the two (target-free) perimeter
-  contractility terms active at $t=0$. Then \texttt{global\_shell\_checks}.
+  contractility terms active at $t=0$. Then \texttt{global\_shell\_checks},
+  then one call to \texttt{seed\_defect\_cells} (Section~\ref{sec:defect};
+  a no-op unless \texttt{defect\_enable}) -- deliberately \emph{after}
+  the targets above are set, so it changes nothing about how
+  $V^0,A^0,A^{0,\mathrm{bas}}$ are chosen, only lowers
+  \texttt{lambda\_own}/scales \texttt{A0\_bas} for the seeded subset
+  afterwards.
   \item \textbf{First dump}: \texttt{ensure\_data\_dir},
   \texttt{write\_mesh\_meta}, \texttt{write\_snapshot(0)},
   \texttt{write\_diagnostics\_now(0)}.
@@ -2611,7 +2870,9 @@ direct translation of the physics into control flow:
   \texttt{division\_enable}), \texttt{attempt\_cell\_divisions} runs the
   same way. Every \texttt{it\_dumps} steps,
   \texttt{write\_snapshot}/\texttt{write\_diagnostics\_now} run and a
-  one-line progress summary is printed.
+  one-line progress summary is printed (with a second line, only when
+  \texttt{defect\_enable} and at least one defect cell was extruded that
+  tick, breaking that tick's defect-cell extrusions down by direction).
   \item \textbf{Shutdown}: one final \texttt{topology\_check} and
   \texttt{ring\_integrity\_check}.
 \end{enumerate}
@@ -2630,9 +2891,16 @@ computes \texttt{max\_force} as the largest \texttt{norm2} of
 including the four running T4 totals
 (\texttt{cumulative\_T4\_apical/\_basal/\_ambiguous} and their sum
 \texttt{cumulative\_T4}, all accumulated in the time loop above exactly
-like \texttt{cumulative\_T1}/\texttt{cumulative\_T2}).
-\textbf{Calls:} \texttt{compute\_lumen\_volume}, the intrinsic
-\texttt{norm2}, \texttt{write\_diagnostics}.
+like \texttt{cumulative\_T1}/\texttt{cumulative\_T2}), the current
+defect-cell population (\texttt{count\_alive\_defect\_cells},
+Section~\ref{sec:mod-defect-code}, plus the constant
+\texttt{n\_defect\_seeded} from start-up), and the same four-way T4
+breakdown again restricted to defect cells
+(\texttt{cumulative\_T4\_defect} and its own
+\texttt{\_apical/\_basal/\_ambiguous}).
+\textbf{Calls:} \texttt{compute\_lumen\_volume},
+\texttt{count\_alive\_defect\_cells}, the intrinsic \texttt{norm2},
+\texttt{write\_diagnostics}.
 
 \section{The MATLAB analysis toolchain (\texttt{matlab/})}
 \label{sec:matlab-code}
@@ -2652,15 +2920,30 @@ cumulative T1, cumulative T2, and cumulative T4 against time in the
 first eight panels of a $3\times3$ grid, with the ninth panel showing
 T4's apical-ward/basal-ward/ambiguous breakdown as three separate
 lines. \textbf{Calls:} \texttt{list\_diagnostics},
-\texttt{read\_diagnostics} (once per dump).
-\paragraph{Tissue/cross-section video (\texttt{main\_movie.m}).} Reads
-a chosen selection of \texttt{snap\_*.dat} vertex snapshots and renders
-the whole-tissue outside view and/or the cross-section ring view
-(independent on/off flags, \texttt{flag\_tissue}/
-\texttt{flag\_cross\_section}), for either a single frame or a whole
-video, depending on how many snapshots are selected. \textbf{Calls:}
+\texttt{read\_diagnostics} (once per dump). (The defect-protocol
+fields \texttt{read\_diagnostics} also returns,
+Section~\ref{sec:defect}, are not yet plotted here -- read directly
+from the struct \texttt{D} returned by \texttt{read\_diagnostics} if
+you need them meanwhile.)
+\paragraph{Tissue/ring videos (\texttt{main\_movie.m}).} Reads a chosen
+selection of \texttt{snap\_*.dat} vertex snapshots and renders up to
+\emph{three independent videos}, each its own figure/window and each
+independently switchable on or off (\texttt{flag\_tissue}/
+\texttt{flag\_latitude}/\texttt{flag\_longitude}): the whole-tissue
+outside view, a \emph{latitude} ring, and a \emph{longitude} ring
+through one chosen cell/location (\texttt{ref\_location} -- a cell
+index or an explicit $[x\ y\ z]$ point, resolved once, from the first
+selected frame, into two fixed cutting planes reused for every later
+frame). ``Latitude''/``longitude'' are defined relative to the z-axis
+as the polar axis (Section~\ref{sec:ring-planes} below); with more
+than one flag on, the videos are made one after another, not at the
+same time (checked directly: this MATLAB install is licensed for
+Parallel Computing Toolbox but does not actually have it installed --
+\texttt{parpool}/\texttt{gcp} are undefined here -- so no
+\texttt{parfor}/\texttt{parfeval} is available). \textbf{Calls:}
 \texttt{list\_snapshots}, \texttt{select\_snapshots},
-\texttt{make\_tissue\_video}, \texttt{make\_cross\_section\_video}.
+\texttt{ring\_planes\_for\_location}, \texttt{make\_tissue\_video},
+\texttt{make\_cross\_section\_video} (twice, for the two rings).
 
 \subsection{Reading the Fortran output}
 \paragraph{Reads one vertex snapshot (\texttt{read\_vertex\_snapshot}).}
@@ -2673,10 +2956,19 @@ in \texttt{src/io\_module.f90} exactly (plain \texttt{fread} calls, no
 external dependency). \textbf{Calls:} none (MATLAB built-ins only).
 \paragraph{Reads one diagnostics snapshot (\texttt{read\_diagnostics}).}
 \textbf{Input:} a filename. \textbf{Output:} a struct \texttt{D} with
-the 13 scalar fields (time, energy, lumen\_volume, outer\_area,
-max\_force, n\_cells, cumulative\_T1, cumulative\_T2,
+the 19 scalar fields written by \texttt{write\_diagnostics}
+(Section~\ref{sec:io-module-code}): time, energy, lumen\_volume,
+outer\_area, max\_force, n\_cells, cumulative\_T1, cumulative\_T2,
 cumulative\_T4, cumulative\_T4\_apical, cumulative\_T4\_basal,
-cumulative\_T4\_ambiguous). \textbf{Calls:} none.
+cumulative\_T4\_ambiguous, n\_defect\_seeded, n\_defect\_alive,
+cumulative\_T4\_defect, cumulative\_T4\_defect\_apical,
+cumulative\_T4\_defect\_basal, cumulative\_T4\_defect\_ambiguous.
+\textbf{Calls:} none. (The six defect-protocol fields were added after
+the rest -- checked directly against a real \texttt{diag\_<it>.dat}: an
+earlier version of this file stopped 6 fields short of the actual
+record, silently leaving that data unread, since \texttt{fread} simply
+reads however many values it is told to and does not complain about
+unread bytes left in the file.)
 \paragraph{Reads the mesh metadata (\texttt{read\_mesh\_meta}).}
 \textbf{Input:} a filename (defaults to \texttt{data/mesh\_meta.txt}).
 \textbf{Output:} a struct with every key/value pair in that file
@@ -2707,56 +2999,147 @@ per cell, its vertex ids padded with NaN past that cell's own side
 count) -- exactly the format MATLAB's \texttt{patch} function wants for
 drawing many polygons of different side-counts at once. \textbf{Calls:}
 none.
+\paragraph{Computes each cell's lateral wall area
+(\texttt{cell\_lateral\_area}).} \textbf{Input:} \texttt{S}.
+\textbf{Output:} one value per alive cell (same order as
+\texttt{find(S.cell\_alive)}). Unlike apical/basal area, the lateral
+(cell--cell wall) area is not stored in the snapshot at all, so this
+computes it directly from \texttt{r\_api}/\texttt{r\_bas} geometry --
+the same two-triangles-per-face convention
+\texttt{Force.f90} (Section~\ref{sec:force-code}) and
+\texttt{plot\_cross\_section} both already use for a lateral quad face.
+\textbf{Calls:} none (a plain per-cell, per-edge loop; MATLAB
+built-ins only).
 \paragraph{Computes per-cell colour values (\texttt{tissue\_color\_values}).}
-\textbf{Inputs:} \texttt{S} and a mode string \texttt{colorby}
-(\texttt{'nsides'}, \texttt{'volume'}, or \texttt{'area'}).
+\textbf{Inputs:} \texttt{S} and a mode string \texttt{colorby}.
 \textbf{Output:} one number per alive cell (\texttt{cval}) and an axis
-label (\texttt{clabel}) -- e.g. for \texttt{'volume'}, the volume
-strain $V/V^0-1$. \textbf{Calls:} none. Shared by both
-\texttt{plot\_tissue\_3d} and \texttt{plot\_cross\_section} (via their
-video-making wrappers) so a single frame and a whole video always use
-the exact same colour definition.
+label (\texttt{clabel}). Ten modes are available:
+\texttt{'nsides'}; \texttt{'volume'}/\texttt{'volume\_abs'} (strain
+$V/V^0-1$ / absolute $V$); \texttt{'area'}/\texttt{'apical\_area'}
+(apical strain / absolute); \texttt{'basal\_area'}/
+\texttt{'basal\_area\_abs'} (basal strain / absolute -- the basal face
+had no colouring option at all before this); \texttt{'lateral\_area'}
+(via \texttt{cell\_lateral\_area}); \texttt{'total\_area'} (apical +
+basal + lateral); and \texttt{'shapefactor'}
+($S_{\mathrm{total}}/V^{2/3}$, the 3-D analogue of the 2-D vertex
+model's dimensionless shape index, minimised by a sphere). The last
+three all call \texttt{cell\_lateral\_area}, noticeably more expensive
+than the others (real per-cell geometry, not a stored-field lookup);
+see \texttt{make\_tissue\_video}/\texttt{make\_cross\_section\_video}
+below for how a whole video avoids paying for that twice per frame.
+\textbf{Calls:} \texttt{cell\_lateral\_area} (for the last three modes
+only). Shared by both \texttt{plot\_tissue\_3d} and
+\texttt{plot\_cross\_section} so a single frame and a whole video
+always use the exact same colour definition.
+\paragraph{Latitude/longitude cutting planes for a location
+(\texttt{ring\_planes\_for\_location}).}
+\label{sec:ring-planes}
+\textbf{Inputs:} \texttt{S} and \texttt{ref} -- either a cell index
+(that cell's own apical-face centroid is used) or an explicit
+$[x\ y\ z]$ point. \textbf{Outputs:} two plane structs,
+\texttt{latPlane} and \texttt{lonPlane} (each a \texttt{.normal}
+(3$\times$1 unit vector) and a \texttt{.point} (3$\times$1) -- the
+plane $\{\vec r : (\vec r-\texttt{point})\cdot\texttt{normal}=0\}$),
+and the resolved reference point itself. Treats the $z$-axis as the
+polar axis by convention (this mesh has no intrinsically marked
+pole): the latitude plane is horizontal, at the reference's own
+height ($\texttt{normal}=\hat z$, $\texttt{point}=(0,0,z_{\mathrm{ref}})$);
+the longitude plane is the vertical meridian through the poles and the
+reference's own azimuthal angle $\phi=\mathrm{atan2}(y_{\mathrm{ref}},x_{\mathrm{ref}})$
+($\texttt{normal}=(-\sin\phi,\cos\phi,0)$, always through the origin).
+\textbf{Calls:} none. Meant to be called once (typically on a video's
+first frame) and the two planes reused unchanged for every later
+frame, exactly like the fixed cutting axis/value this replaced.
 \paragraph{Whole-tissue 3D plot (\texttt{plot\_tissue\_3d}).}
-\textbf{Inputs:} \texttt{S}, \texttt{colorby}, and optionally an
-existing figure/colour-range to draw into (\texttt{'Figure', 'CLim'}
-name-value pairs, used when called from inside a video loop).
-\textbf{Output:} the figure handle. Draws every alive cell's apical
-polygon as one shaded, coloured patch on the outer shell, with a fixed
-(not auto-fitting) axis range pinned to $R_{\mathrm{apical}}$ and a
-frozen camera zoom, a title showing the simulation time, and a
-colourbar. \textbf{Calls:} \texttt{cell\_faces\_matrix},
-\texttt{tissue\_color\_values}.
+\textbf{Inputs:} \texttt{S}, \texttt{colorby}, and name-value pairs:
+\texttt{'Figure'}/\texttt{'Axes'} (draw into an existing figure or axes
+-- e.g.\ one subplot of a bigger figure -- instead of always owning a
+whole figure), \texttt{'CLim'} (a fixed colour range instead of
+auto-scaling to this one frame), \texttt{'Title'} (a label prepended
+above the usual ``t = ...'' title), \texttt{'ColorMap'} (any built-in
+MATLAB colormap name, default \texttt{'parula'}), and \texttt{'CVal'}/
+\texttt{'CBLabel'} (an already-computed colour vector/label, to skip
+calling \texttt{tissue\_color\_values} again -- see
+\texttt{make\_tissue\_video} below). \textbf{Output:} the figure
+handle. Draws every alive cell's apical polygon as one shaded,
+coloured patch on the outer shell, with a fixed (not auto-fitting)
+axis range pinned to $R_{\mathrm{apical}}$ and the view frozen via
+\texttt{axis vis3d} (Section~\ref{sec:vis3d-note} below) rather than
+just \texttt{CameraViewAngleMode} by hand, a title, and a colourbar.
+\textbf{Calls:} \texttt{cell\_faces\_matrix}, \texttt{tissue\_color\_values}
+(unless \texttt{'CVal'} was given).
 \paragraph{Cross-section ring plot (\texttt{plot\_cross\_section}).}
-\textbf{Inputs:} \texttt{S}, a cutting axis (\texttt{cutaxis}
-= \texttt{'x'|'y'|'z'}), a cutting-plane offset (\texttt{cutvalue}), and
-the same optional \texttt{'Figure'/'ColorBy'/'CLim'} pairs.
-\textbf{Output:} the figure handle. Finds every cell whose apical
-polygon straddles the cutting plane, builds its own explicit triangle
-list for every face (apical/basal fans from a synthetic centroid,
-lateral quads split into 2 triangles -- deliberately not handed to
-MATLAB's own internal triangulation, which was observed to
+\textbf{Inputs:} \texttt{S}, a cutting-plane specifier -- either the
+legacy \texttt{(cutaxis, cutvalue)} form (\texttt{'x'|'y'|'z'} plus a
+scalar, the plane $\{\text{axis}=\text{value}\}$) or a general
+\texttt{\{normal, point\}} struct (Section~\ref{sec:ring-planes}, for a
+plane at an arbitrary angle, not just axis-aligned) -- and the same
+\texttt{'Figure'}/\texttt{'Axes'}/\texttt{'ColorBy'}/\texttt{'CLim'}/
+\texttt{'Title'}/\texttt{'ColorMap'}/\texttt{'CVal'}/\texttt{'CBLabel'}
+pairs as \texttt{plot\_tissue\_3d}, plus \texttt{'View'} (an explicit
+$[\mathrm{az}\ \mathrm{el}]$, e.g.\ one found by hand and read back
+with \texttt{[az,el]=view(gca)}, instead of the default automatic
+tilt). \textbf{Output:} the figure handle. Finds every cell whose
+apical polygon straddles the cutting plane, builds its own explicit
+triangle list for every face (apical/basal fans from a synthetic
+centroid, lateral quads split into 2 triangles -- deliberately not
+handed to MATLAB's own internal triangulation, which was observed to
 occasionally become numerically unstable on certain quad shapes),
 colours every triangle of one cell by that one cell's colour value so
 whole cells read as solid, distinct blocks, draws true polygon-boundary
-edges separately, and views the result face-on to the cutting plane.
-\textbf{Calls:} \texttt{tissue\_color\_values}.
+edges separately, and views the result at a slight tilt from face-on
+to the cutting plane (a pure face-on view flattens the ring into what
+reads as a 2-D strip) unless \texttt{'View'} overrides it, with the
+same \texttt{axis vis3d} freeze as \texttt{plot\_tissue\_3d}.
+\textbf{Calls:} \texttt{tissue\_color\_values} (unless \texttt{'CVal'}
+was given).
+
+\begin{physbox}
+\label{sec:vis3d-note}
+\textbf{Why \texttt{axis vis3d}, not just freezing the camera zoom by
+hand.} Both plotting functions need their view frozen so a video does
+not glitch between frames (Section~\ref{sec:code-sanity}'s
+observation that \texttt{CameraViewAngleMode} left on \texttt{'auto'}
+lets MATLAB silently recompute the zoom on a later redraw). That alone
+is not enough for anyone using a saved figure \emph{interactively}: it
+leaves \texttt{PlotBoxAspectRatioMode} on \texttt{'auto'}, which
+re-fits the plot box's shape to the axes region for whatever the
+\emph{current} view direction is -- invisible for one static frame, but
+exactly what showed up (checked directly) as the whole scene appearing
+to zoom in and out while a user rotated it by hand. \texttt{axis
+vis3d}, called once after the axes' final position/limits/view are
+set, freezes both properties together and was confirmed (checked
+directly) to preserve whatever camera/view was already set rather than
+recomputing it.
+\end{physbox}
+
 \paragraph{Makes a whole-tissue video (\texttt{make\_tissue\_video}).}
 \textbf{Inputs:} a list of snapshot filenames, \texttt{colorby}, an
-output filename, and a frame rate. \textbf{Output:} an \texttt{.avi}
-file (\texttt{'Motion JPEG AVI'} profile, supported on every platform
-including Linux, unlike \texttt{MPEG-4}). Pre-scans every requested
-snapshot once to fix one colour range for the whole video (so the
-colour scale never flickers frame to frame), reuses a single
-fixed-size figure window, and captures each frame via
+output filename, a frame rate, and an optional colormap name.
+\textbf{Output:} an \texttt{.avi} file (\texttt{'Motion JPEG AVI'}
+profile, supported on every platform including Linux, unlike
+\texttt{MPEG-4}). Pre-scans every requested snapshot once to fix one
+colour range for the whole video (so the colour scale never flickers
+frame to frame) \emph{and} caches each frame's own colour values
+(\texttt{tissue\_color\_values}) from that same pass, handing them
+straight to \texttt{plot\_tissue\_3d} via \texttt{'CVal'}/
+\texttt{'CBLabel'} during the render loop instead of recomputing them
+-- for a cheap mode (a stored-field lookup) this saves nothing worth
+mentioning, but for \texttt{'total\_area'}/\texttt{'shapefactor'}
+(which triangulate every cell's lateral walls from raw geometry) it
+avoids doing that real computation twice per frame. Also reuses a
+single fixed-size figure window, and captures each frame via
 \texttt{print(fig,'-RGBImage')} rather than \texttt{getframe} (which
 was observed to occasionally race MATLAB's own renderer and grab an
 incomplete frame). \textbf{Calls:} \texttt{read\_vertex\_snapshot},
 \texttt{tissue\_color\_values}, \texttt{plot\_tissue\_3d}, once per
 frame.
 \paragraph{Makes a cross-section video (\texttt{make\_cross\_section\_video}).}
-Exactly mirrors \texttt{make\_tissue\_video}, calling
+Exactly mirrors \texttt{make\_tissue\_video} (same colour-value
+caching, same colormap-name argument), calling
 \texttt{plot\_cross\_section} once per frame instead, with the cutting
-axis/value fixed once for the whole video. \textbf{Calls:}
+plane, an optional title label, and an optional explicit view angle all
+fixed once for the whole video. \textbf{Calls:}
 \texttt{read\_vertex\_snapshot}, \texttt{tissue\_color\_values},
 \texttt{plot\_cross\_section}.
 
