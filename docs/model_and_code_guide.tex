@@ -33,6 +33,7 @@
 \definecolor{cellB}{RGB}{160,210,255}
 \definecolor{cellC}{RGB}{190,255,190}
 \definecolor{cellD}{RGB}{255,180,190}
+\definecolor{crowdcolor}{RGB}{225,100,90}
 \definecolor{codebg}{RGB}{246,246,250}
 \definecolor{codeframe}{RGB}{200,200,215}
 \definecolor{boxblue}{RGB}{235,242,250}
@@ -1142,7 +1143,7 @@ model. Setting $k_BT=0$ switches off the noise term entirely
 energy-minimising relaxation -- useful for testing the mechanics in
 isolation from thermal fluctuations.
 
-\section{Topological transitions: T1, T2, and cell division}
+\section{Topological transitions: T1, T2, cell division, and T4}
 \label{sec:transitions}
 
 Section~\ref{sec:dynamics}'s Langevin update moves vertices
@@ -1151,12 +1152,12 @@ neighbours as they squeeze past each other, cells are extruded/die, and
 cells grow and divide. Each of these changes the tissue's
 \emph{topology} -- which cells border which -- something a purely
 continuous update to vertex positions can never do by itself. The code
-checks for all three, periodically (every \texttt{it\_topology\_check}
-steps for T1/T2, every \texttt{it\_division\_check} steps for
+checks for all four, periodically (every \texttt{it\_topology\_check}
+steps for T1/T2/T4, every \texttt{it\_division\_check} steps for
 division), by scanning simple geometric criteria (an edge's length, a
 triangular cell's area, a cell's volume) and performing explicit,
 discrete ``ring surgery'' on the data structure whenever a threshold is
-crossed. All three transitions follow one shared design rule, worth
+crossed. All four transitions follow one shared design rule, worth
 stating up front: \textbf{every mutation is fully validated before
 anything is changed}. Side counts, capacity limits, and geometric
 sanity are all checked using only read-only queries first; only once
@@ -1572,6 +1573,192 @@ edges, needing room for \emph{two} new sides, not one) -- and only
 allocates the two new vertex columns and the new cell slot once every
 check has passed.
 
+\subsection{T4: crowding-induced live-cell extrusion}
+\label{sec:T4}
+
+\textbf{Biology.} Cells can also leave a tissue while still perfectly
+healthy, simply because their neighbours are pressing in on them too
+hard. This is a well-documented, distinct phenomenon from apoptotic T2
+removal: overcrowded epithelia actively extrude live cells to relieve
+mechanical stress and keep cell density under control (the
+crowding-extrusion literature -- e.g. Eisenhoffer and Rosenblatt's
+review work, and Marinari \emph{et al.}'s study of overcrowding-driven
+delamination -- is the usual reference point). T4 is this code's model
+of that process. It is optional and off by default
+(\texttt{T4\_enable}, \texttt{para.in}).
+
+\textbf{Why T4 cannot just reuse T2 outright.} T2
+(Section~\ref{sec:T2}) removes a cell by collapsing \emph{every} one of
+its corners onto a single point -- fine for a triangle, but a violent,
+all-at-once rewrite if applied directly to a healthy hexagon: all six
+of its neighbours would suddenly meet at one degenerate point in a
+single step. Crowding extrusion needs something gentler: the crowded
+cell's neighbours should \textbf{merge faces one at a time} as it
+shrinks -- gaining new adjacencies gradually -- not all snap together
+at once. That gentler process turns out to already exist in this
+code, just not previously used this way.
+
+\textbf{The trigger.} A cell counts as crowded once its volume has been
+squeezed well below its own target,
+\begin{equation}
+  V_i < \texttt{V\_extrusion\_threshold} \times V_i^0,
+  \label{eq:T4-trigger}
+\end{equation}
+the exact volume-based mirror of Section~\ref{sec:division}'s own
+growth criterion ($V_i > \texttt{V\_division\_threshold}\times V_i^0$
+triggers a split): reusing a quantity (\texttt{cells(ic)\%V\_last}
+compared against \texttt{cells(ic)\%V0}) every cell already tracks, no
+new geometry required.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.85, every node/.style={font=\small}]
+  \def\Rap{1.55}
+  \def\Rbas{1.05}
+  \def\shiftx{0.55}
+  \def\shifty{-1.65}
+  \foreach \i in {0,...,5}{ \coordinate (A\i) at ({\Rap*cos(60*\i+90)},{\Rap*sin(60*\i+90)}); }
+  \foreach \i in {0,...,5}{ \coordinate (B\i) at ({\shiftx+\Rbas*cos(60*\i+90)},{\shifty+\Rbas*sin(60*\i+90)}); }
+  \foreach \i in {0,...,5}{
+    \pgfmathtruncatemacro{\j}{mod(\i+1,6)}
+    \fill[lateralgray, opacity=0.55] (A\i.center) -- (A\j.center) -- (B\j.center) -- (B\i.center) -- cycle;
+    \draw[thin, black!50] (A\i.center) -- (B\i.center);
+  }
+  \fill[crowdcolor, opacity=0.55] (B0) \foreach \i in {1,...,5}{ -- (B\i) } -- cycle;
+  \draw[thick] (B0) \foreach \i in {1,...,5}{ -- (B\i) } -- cycle;
+  \fill[crowdcolor, opacity=0.8] (A0) \foreach \i in {1,...,5}{ -- (A\i) } -- cycle;
+  \draw[thick] (A0) \foreach \i in {1,...,5}{ -- (A\i) } -- cycle;
+  % inward "squeeze" arrows from three alternating directions
+  \foreach \ang in {30, 150, 270} {
+    \draw[-{Latex[length=2.5mm]}, thick, black!60] ({1.55*1.85*cos(\ang)},{1.55*1.85*sin(\ang)}) -- ({1.55*1.05*cos(\ang)},{1.55*1.05*sin(\ang)});
+  }
+  \node[right, font=\scriptsize, align=left] at (2.3,-1.4) {squeezed by\\crowding\\neighbours:\\$V_{\mathrm{last}} < $\\ \texttt{V\_extrusion\_}\\\texttt{threshold}$\times V^0$};
+\end{tikzpicture}
+\caption{A crowded cell, drawn as the same kind of genuine 3D vertex
+column as Fig.~\ref{fig:one-cell} (solid apical shell, faint basal
+shell): its volume has been pushed below its own target by the
+neighbours pressing in on it. This is the trigger condition,
+Eq.~\eqref{eq:T4-trigger} -- what happens next is described below.}
+\label{fig:T4-3d}
+\end{figure}
+
+\textbf{The mechanism: repeated T1 flips, then a T2 finish.} Every
+\texttt{it\_topology\_check} tick (T4 shares T1/T2's cadence -- no
+separate knob), every crowded cell with more than 3 sides has
+\emph{one} of its own edges flipped: specifically its own
+currently-shortest edge, using \texttt{try\_T1\_edge} -- the very same
+primitive ordinary T1 neighbour exchange already uses
+(Section~\ref{sec:T1}). Recall exactly what one T1 flip does: the two
+cells that were \emph{not} sharing that edge become neighbours across
+a brand new wall, while the two that \emph{did} share it each lose a
+side (Fig.~\ref{fig:T1}). Doing this, once per tick, to a crowded
+cell's own shrinking boundary is precisely ``neighbours merge faces,
+one new adjacency at a time''. Once the crowded cell has been whittled
+down to 3 sides, one more flip is not meaningful (there is no smaller
+polygon to shrink toward), so it is handed directly to
+\texttt{do\_T2} -- the very same finishing move ordinary T2 already
+uses (Section~\ref{sec:T2}, Fig.~\ref{fig:T2}) -- to complete the
+removal.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[every node/.style={font=\small}]
+  \node[regular polygon, regular polygon sides=6, draw, thick, fill=crowdcolor, fill opacity=0.6, minimum size=2.0cm] (P6) at (0,0) {};
+  \node[below=8pt] at (P6.south) {\footnotesize $n=6$};
+  \draw[-{Latex[length=3mm]}, thick] (P6.east) -- ++(1.1,0) node[midway, above, font=\scriptsize, align=center] {T1 flip\\(own shortest edge)};
+
+  \node[regular polygon, regular polygon sides=5, draw, thick, fill=crowdcolor, fill opacity=0.65, minimum size=1.7cm] (P5) at (3.3,0) {};
+  \node[below=8pt] at (P5.south) {\footnotesize $n=5$};
+  \draw[-{Latex[length=3mm]}, thick] (P5.east) -- ++(1.1,0) node[midway, above, font=\scriptsize, align=center] {T1 flip};
+
+  \node[regular polygon, regular polygon sides=4, draw, thick, fill=crowdcolor, fill opacity=0.7, minimum size=1.4cm] (P4) at (6.1,0) {};
+  \node[below=8pt] at (P4.south) {\footnotesize $n=4$};
+  \draw[-{Latex[length=3mm]}, thick] (P4.east) -- ++(1.1,0) node[midway, above, font=\scriptsize, align=center] {T1 flip};
+
+  \node[regular polygon, regular polygon sides=3, draw, thick, fill=crowdcolor, fill opacity=0.75, minimum size=1.2cm] (P3) at (8.7,0) {};
+  \node[below=8pt] at (P3.south) {\footnotesize $n=3$};
+  \draw[-{Latex[length=3mm]}, thick] (P3.east) -- ++(1.3,0) node[midway, above, font=\scriptsize, align=center] {T2 collapse\\(\texttt{do\_T2})};
+
+  \fill (11.2,0) circle (2.2pt);
+  \node[below=8pt] at (11.2,-0.15) {\footnotesize removed};
+\end{tikzpicture}
+\caption{The T4 shrinkage sequence for one crowded cell, one
+\texttt{it\_topology\_check} tick per arrow: each T1 flip (identical to
+Fig.~\ref{fig:T1}, applied to the cell's own shortest edge) removes one
+side and merges two of its neighbours across a new wall; once at
+$n=3$, \texttt{do\_T2} (identical to Fig.~\ref{fig:T2}) finishes the
+removal. Nothing about ``this cell is mid-extrusion'' is remembered
+between ticks -- every tick simply re-checks Eq.~\eqref{eq:T4-trigger}
+fresh and, if still crowded, takes the next step shown here.}
+\label{fig:T4-sequence}
+\end{figure}
+
+\textbf{Fully stateless, no side-count cap.} Nothing in
+Fig.~\ref{fig:T4-sequence} is remembered from one tick to the next: if
+\texttt{try\_T1\_edge} declines the flip this tick (e.g.\ a momentarily
+non-trivalent vertex, or a flanking cell already at
+\texttt{MAX\_SIDES}), the cell is simply reconsidered from scratch,
+with no bookkeeping, at the next tick; if its volume happens to recover
+above threshold partway through, it just stops being touched. No new
+per-cell field is added anywhere for this. There is also no upper cap
+on how large $n$ may start out: every single action taken is one
+already-validated T1 flip (or a final \texttt{do\_T2} only once
+$n=3$), so however large a crowded cell starts, it simply takes more
+ticks -- it can never vanish in one violent step the way a direct
+point-collapse of a large polygon would.
+
+\textbf{Direction: which way was it squeezed out?} Real live-cell
+extrusion can go either way -- apically (out through the outer
+surface) or basally (delaminating toward the lumen) -- and it is worth
+recording which, per event, using data every cell already has. At the
+moment of the final \texttt{do\_T2} call, two ratios are compared:
+\begin{equation}
+  \text{ratio}_{\mathrm{api}} = \frac{A_{\mathrm{last}}}{A^0}, \qquad
+  \text{ratio}_{\mathrm{bas}} = \frac{A^{\mathrm{bas}}_{\mathrm{last}}}{A^{0,\mathrm{bas}}},
+  \label{eq:T4-direction-ratios}
+\end{equation}
+i.e. how compressed the apical face is relative to \emph{its own}
+target, versus how compressed the basal face is relative to
+\emph{its own} target (Section~\ref{sec:energy}'s $A_i^0$ and
+$A_i^{0,\mathrm{bas}}$). Whichever face is proportionally \emph{more}
+compressed is taken as the side the cell is being squeezed out toward.
+
+\begin{physbox}
+\textbf{Why a deadband, and how the count is kept.} $A_{\mathrm{last}}$
+and $A^{\mathrm{bas}}_{\mathrm{last}}$ are ordinary instantaneous
+quantities, recomputed by \texttt{compute\_forces} every single step
+(Section~\ref{sec:forces}) -- they fluctuate step to step like any
+other dynamical quantity. A bare comparison
+($\text{ratio}_{\mathrm{api}} < \text{ratio}_{\mathrm{bas}}$, direction
+apical, and vice versa) would therefore flicker unpredictably whenever
+the two ratios happen to be close, misreporting noise as a real
+directional bias. \texttt{T4\_direction\_deadband} (default $0.05$)
+fixes this by requiring a \emph{margin}: apical is only recorded when
+$\text{ratio}_{\mathrm{api}}$ is more than the deadband \emph{below}
+$\text{ratio}_{\mathrm{bas}}$ (and symmetrically for basal); every
+event that is closer than that is bucketed as \emph{ambiguous} instead
+of being forced arbitrarily to one side or the other:
+\begin{equation}
+  \text{direction} =
+  \begin{cases}
+    \text{apical}, & \text{ratio}_{\mathrm{api}} < \text{ratio}_{\mathrm{bas}} - \texttt{deadband} \\
+    \text{basal}, & \text{ratio}_{\mathrm{bas}} < \text{ratio}_{\mathrm{api}} - \texttt{deadband} \\
+    \text{ambiguous}, & \text{otherwise.}
+  \end{cases}
+\end{equation}
+Every completed T4 event increments exactly one of three running
+totals -- \texttt{cumulative\_T4\_apical}, \texttt{cumulative\_T4\_basal},
+\texttt{cumulative\_T4\_ambiguous} -- alongside the overall
+\texttt{cumulative\_T4} count (which always equals the sum of the
+three). All four are plain running integers, accumulated in
+\texttt{main.f90} exactly like \texttt{cumulative\_T1}/
+\texttt{cumulative\_T2} already were, and written out to every
+\texttt{diag\_<it>.dat} dump (Section~\ref{sec:io-module-code}) so the
+apical/basal/ambiguous split over the whole run can be plotted
+afterwards (\texttt{main\_analysis.m}) -- no per-cell history is kept,
+only these four whole-tissue totals.
+\end{physbox}
+
 \section{Sanity checks and worked benchmarks}
 \label{sec:code-sanity}
 
@@ -1714,7 +1901,7 @@ for tree={
   [{README.md}]
   [{para.in}]
   [{Makefile}]
-  [{src/ \textrm{\normalfont\itshape\small\ -- 14 files, the Fortran engine, Sec.~\ref{sec:src-code}}}]
+  [{src/ \textrm{\normalfont\itshape\small\ -- 15 files, the Fortran engine, Sec.~\ref{sec:src-code}}}]
   [{build/}]
   [{data/ \textrm{\normalfont\itshape\small\ -- snap\_/diag\_ output + example/}}]
   [{matlab/ \textrm{\normalfont\itshape\small\ -- 14 files, analysis \& plotting, Sec.~\ref{sec:matlab-code}}}]
@@ -1737,8 +1924,8 @@ automatically and are not stored in version control.}
 mod\_kinds.f90\\ mod\_parameters.f90\\ mod\_data.f90\\
 mod\_geometry.f90\\ mod\_topology.f90\\ mesh\_init.f90\\
 Force.f90\\ Langevin\_update.f90\\ T1\_transition.f90\\
-T2\_transition.f90\\ Cell\_Division.f90\\ io\_module.f90\\
-sanity\_checks.f90\\ main.f90
+T2\_transition.f90\\ T4\_transition.f90\\ Cell\_Division.f90\\
+io\_module.f90\\ sanity\_checks.f90\\ main.f90
 \end{tabular}}
 \end{minipage}%
 \begin{minipage}{0.5\textwidth}
@@ -1759,7 +1946,7 @@ make\_cross\_section\_video.m
 
 \section{The Fortran engine (\texttt{src/})}
 \label{sec:src-code}
-The 14 source files are compiled in a strict dependency order (each
+The 15 source files are compiled in a strict dependency order (each
 Fortran \texttt{module} must be compiled before anything that
 \texttt{use}s it) -- this order is also, conveniently, close to the
 most natural \emph{reading} order, going from the most low-level/generic
@@ -1769,8 +1956,11 @@ building blocks up to the program that ties everything together:
 \texttt{mod\_topology} $\rightarrow$ \texttt{mesh\_init} $\rightarrow$
 \texttt{Force} $\rightarrow$ \texttt{Langevin\_update} $\rightarrow$
 \texttt{T1\_transition} $\rightarrow$ \texttt{T2\_transition}
-$\rightarrow$ \texttt{Cell\_Division} $\rightarrow$ \texttt{io\_module}
-$\rightarrow$ \texttt{sanity\_checks} $\rightarrow$ \texttt{main}.
+$\rightarrow$ \texttt{T4\_transition} $\rightarrow$ \texttt{Cell\_Division}
+$\rightarrow$ \texttt{io\_module} $\rightarrow$ \texttt{sanity\_checks}
+$\rightarrow$ \texttt{main}. (\texttt{T4\_transition} must follow both
+\texttt{T1\_transition} and \texttt{T2\_transition}, since it calls
+into each of them directly -- see below.)
 
 \subsection{\texttt{mod\_kinds.f90} -- numeric precision}
 The entire codebase works in one consistent numeric precision, defined
@@ -1795,7 +1985,8 @@ their basal counterparts $K_A^{\mathrm{bas}}, K_P^{\mathrm{bas}}$ as
 (\texttt{N\_subdivision, R\_apical, R\_basal}), every dynamics setting
 (\texttt{zeta\_friction, kBT, dt, n\_steps}), and every transition
 threshold (\texttt{L\_T1\_threshold, A\_T2\_threshold,
-V\_division\_threshold}, and how often to check for each).
+V\_division\_threshold, V\_extrusion\_threshold,
+T4\_direction\_deadband}, and how often to check for each).
 \textbf{Calls:} only Fortran intrinsics (it reads a \texttt{NAMELIST}
 block, Fortran's native ``named key=value list'' file format). It also
 runs a handful of basic sanity checks on the values themselves (e.g.
@@ -1814,7 +2005,13 @@ This is exactly the same trick already used for
 sentinel, since it doesn't need to mirror another variable) -- it lets
 an older \texttt{para.in} with no basal keys at all keep working
 unchanged, with the basal face defaulting to behave exactly like the
-apical one.
+apical one. \texttt{T4\_direction\_deadband} (Section~\ref{sec:T4})
+gets the same sentinel treatment, defaulting to \texttt{0.05} if
+omitted; \texttt{T4\_enable} and \texttt{V\_extrusion\_threshold}, by
+contrast, are \emph{required} keys with no default at all, exactly like
+\texttt{division\_enable}/\texttt{V\_division\_threshold} -- there is
+no sensible silent default for ``should this feature be on'' or ``how
+compressed counts as crowded''.
 
 \subsection{\texttt{mod\_data.f90} -- the core data structures}
 This file defines the two central data structures literally everything
@@ -2171,6 +2368,45 @@ qcap}, extended in place if this collapse creates more work).
 alive cell, to substitute every discarded vertex id with the survivor
 and immediately tidy up any resulting duplicate ring entries.
 
+\subsection{\texttt{T4\_transition.f90} -- crowding-induced extrusion}
+\label{sec:T4-code}
+Section~\ref{sec:T4} already derived this file's algorithm in full;
+note this module (\texttt{mod\_T4}) \texttt{use}s \texttt{mod\_T1} and
+\texttt{mod\_T2} directly (\texttt{only: try\_T1\_edge} and
+\texttt{only: do\_T2} respectively) -- it contains no ring-surgery code
+of its own.
+\paragraph{Scans for and progresses every crowded cell
+(\texttt{attempt\_T4\_transitions}).} \textbf{Input:} none directly
+(reads \texttt{cells(:)\%V\_last}, \texttt{cells(:)\%V0} and
+\texttt{V\_extrusion\_threshold}; does nothing at all if
+\texttt{T4\_enable} is false). \textbf{Outputs:} \texttt{n\_flips} (how
+many cells had one edge flipped this tick), \texttt{n\_extruded} (how
+many completed removals), and \texttt{n\_extruded\_apical,
+n\_extruded\_basal, n\_extruded\_ambiguous} (that same completed-removal
+count broken down by direction, Section~\ref{sec:T4}). \textbf{Calls:}
+\texttt{shortest\_own\_edge}, \texttt{try\_T1\_edge} (for a still-large
+crowded cell), \texttt{classify\_T4\_direction}, \texttt{do\_T2} (for
+one already at 3 sides). Uses a local \texttt{touched(:)} array
+exactly the way \texttt{attempt\_T1\_transitions} does, purely to avoid
+acting twice in the same pass on a vertex column another flip already
+moved this tick -- not persisted between ticks.
+\paragraph{Finds a cell's own shortest edge
+(\texttt{shortest\_own\_edge}).} \textbf{Input:} a cell id
+\texttt{icell}. \textbf{Output:} the two vertex-column ids \texttt{j,
+k} spanning its shortest apical edge (both 0 if the ring is degenerate).
+\textbf{Calls:} \texttt{norm3}. Measures every edge the same
+apical-length way \texttt{attempt\_T1\_transitions} already measures
+edges globally -- needed because \texttt{try\_T1\_edge} takes vertex
+ids, not a cell id.
+\paragraph{Classifies which face a cell was squeezed toward
+(\texttt{classify\_T4\_direction}).} \textbf{Input:} a cell id
+\texttt{icell} (read just before it is handed to \texttt{do\_T2}, while
+its \texttt{\%A\_last}/\texttt{\%A\_bas\_last} still reflect its final
+compressed shape). \textbf{Output:} one of three named integer
+constants, \texttt{T4\_DIR\_APICAL}, \texttt{T4\_DIR\_BASAL}, or
+\texttt{T4\_DIR\_AMBIGUOUS}, via the deadbanded comparison of
+Eq.~\ref{eq:T4-direction-ratios}. \textbf{Calls:} none.
+
 \subsection{\texttt{Cell\_Division.f90} -- cell division}
 Section~\ref{sec:division} already derived this file's algorithm in
 full.
@@ -2236,7 +2472,9 @@ manifest is somehow missing). \textbf{Calls:} none.
 \paragraph{Writes one diagnostics snapshot
 (\texttt{write\_diagnostics}).} \textbf{Inputs:} \texttt{it, time,
 energy, lumen\_volume, outer\_area, max\_force, n\_cells,
-cumulative\_T1, cumulative\_T2} -- every scalar diagnostic already
+cumulative\_T1, cumulative\_T2, cumulative\_T4,
+cumulative\_T4\_apical, cumulative\_T4\_basal,
+cumulative\_T4\_ambiguous} -- every scalar diagnostic already
 computed by the caller (\texttt{write\_diagnostics\_now} in
 \texttt{main.f90}). \textbf{Output:} \texttt{data/diag\_<it>.dat}, a
 small stream/unformatted binary file with exactly those 9 values, in
@@ -2331,11 +2569,13 @@ direct translation of the physics into control flow:
   \texttt{write\_diagnostics\_now(0)}.
   \item \textbf{The time loop} (\texttt{it = 1, n\_steps}): every step
   calls \texttt{compute\_forces} then \texttt{langevin\_step}. Every
-  \texttt{it\_topology\_check} steps, \texttt{attempt\_T1\_transitions}
-  then \texttt{attempt\_T2\_transitions} run, with
+  \texttt{it\_topology\_check} steps, \texttt{attempt\_T1\_transitions},
+  then \texttt{attempt\_T2\_transitions}, then \texttt{attempt\_T4\_transitions}
+  run in that order, with
   \texttt{topology\_check}/\texttt{ring\_integrity\_check} re-run (and
   the run aborted if the latter fails) whenever anything actually
-  happened. Every \texttt{it\_division\_check} steps (if
+  happened (including a T4 flip that did not yet complete a removal).
+  Every \texttt{it\_division\_check} steps (if
   \texttt{division\_enable}), \texttt{attempt\_cell\_divisions} runs the
   same way. Every \texttt{it\_dumps} steps,
   \texttt{write\_snapshot}/\texttt{write\_diagnostics\_now} run and a
@@ -2354,7 +2594,11 @@ back negative -- Section~\ref{sec:basal-reverse}'s discussion of what a
 negative lumen volume means physically: the mesh folding over itself),
 computes \texttt{max\_force} as the largest \texttt{norm2} of
 \texttt{f\_api}/\texttt{f\_bas} over every alive vertex, and calls
-\texttt{write\_diagnostics} with everything gathered together.
+\texttt{write\_diagnostics} with everything gathered together,
+including the four running T4 totals
+(\texttt{cumulative\_T4\_apical/\_basal/\_ambiguous} and their sum
+\texttt{cumulative\_T4}, all accumulated in the time loop above exactly
+like \texttt{cumulative\_T1}/\texttt{cumulative\_T2}).
 \textbf{Calls:} \texttt{compute\_lumen\_volume}, the intrinsic
 \texttt{norm2}, \texttt{write\_diagnostics}.
 
@@ -2371,9 +2615,11 @@ else is a helper called by one or both of them.
 \paragraph{Diagnostics-vs-time plot (\texttt{main\_analysis.m}).}
 Reads the \emph{whole} \texttt{diag\_*.dat} time series (falling back
 to the bundled \texttt{data/example/} if \texttt{data/} is empty) and
-plots all 7 scalar diagnostics (energy, lumen volume, outer area, max
-force, cell count, cumulative T1, cumulative T2) against time, one
-panel each, in a single figure. \textbf{Calls:} \texttt{list\_diagnostics},
+plots energy, lumen volume, outer area, max force, cell count,
+cumulative T1, cumulative T2, and cumulative T4 against time in the
+first eight panels of a $3\times3$ grid, with the ninth panel showing
+T4's apical-ward/basal-ward/ambiguous breakdown as three separate
+lines. \textbf{Calls:} \texttt{list\_diagnostics},
 \texttt{read\_diagnostics} (once per dump).
 \paragraph{Tissue/cross-section video (\texttt{main\_movie.m}).} Reads
 a chosen selection of \texttt{snap\_*.dat} vertex snapshots and renders
@@ -2395,9 +2641,10 @@ in \texttt{src/io\_module.f90} exactly (plain \texttt{fread} calls, no
 external dependency). \textbf{Calls:} none (MATLAB built-ins only).
 \paragraph{Reads one diagnostics snapshot (\texttt{read\_diagnostics}).}
 \textbf{Input:} a filename. \textbf{Output:} a struct \texttt{D} with
-the 9 scalar fields (time, energy, lumen\_volume, outer\_area,
-max\_force, n\_cells, cumulative\_T1, cumulative\_T2). \textbf{Calls:}
-none.
+the 13 scalar fields (time, energy, lumen\_volume, outer\_area,
+max\_force, n\_cells, cumulative\_T1, cumulative\_T2,
+cumulative\_T4, cumulative\_T4\_apical, cumulative\_T4\_basal,
+cumulative\_T4\_ambiguous). \textbf{Calls:} none.
 \paragraph{Reads the mesh metadata (\texttt{read\_mesh\_meta}).}
 \textbf{Input:} a filename (defaults to \texttt{data/mesh\_meta.txt}).
 \textbf{Output:} a struct with every key/value pair in that file
