@@ -36,13 +36,23 @@ addpath(this_dir);
 
 %% ---------------- user-configurable flags -----------------------------
 flag_tissue     = true;    % make the whole-tissue (outside) view
-flag_latitude   = true;    % make the latitude-ring cross-section view
-flag_longitude  = true;    % make the longitude-ring cross-section view
+flag_latitude   = false;    % make the latitude-ring cross-section view
+flag_longitude  = false;    % make the longitude-ring cross-section view
                             % (all three independent -- run any subset)
 
-colorby = 'nsides';         % 'nsides' | 'volume' | 'area' -- colouring
-                             % for all three (individual cells shown as
-                             % one solid colour each on the rings, too)
+colorby = 'shapefactor';         % colouring for all three (individual cells
+                             % shown as one solid colour each on the
+                             % rings, too) -- see tissue_color_values.m
+                             % for the full list and exact definitions:
+                             %   'nsides'                    number of sides
+                             %   'volume' / 'volume_abs'     V/V0-1 / V
+                             %   'area' / 'apical_area'      Aapi/A0-1 / Aapi
+                             %   'basal_area' / 'basal_area_abs'   Abas/A0bas-1 / Abas
+                             %   'lateral_area'              cell-cell wall area
+                             %   'total_area'                apical+basal+lateral
+                             %   'shapefactor'               total_area / V^(2/3)
+colormapName = 'parula';    % any built-in MATLAB colormap name, e.g.
+                             % 'turbo', 'jet', 'hot', 'cool', 'copper', 'bone'
 
 ref_location = 1;            % which cell/location the latitude and
                               % longitude rings are cut through -- EITHER
@@ -69,7 +79,7 @@ longitude_view = [  -9.195907331898637, 10.77613463554659];  % found by hand
 %   video_its = 5000;            % just one snapshot -> a single plot
 %   video_its = [];               % every saved snapshot
 
-video_its =10000;
+video_its =100000;
 
 video_fps = 4;                     % frames per second for saved videos
 video_dir = fullfile(project_root, 'videos');
@@ -106,7 +116,7 @@ end
 
 if flag_tissue
     outfile = fullfile(video_dir, sprintf('tissue_%s.avi', colorby));
-    make_tissue_video(video_files, colorby, outfile, video_fps);
+    make_tissue_video(video_files, colorby, outfile, video_fps, colormapName);
 end
 
 if flag_latitude || flag_longitude
@@ -116,10 +126,12 @@ if flag_latitude || flag_longitude
 
     if flag_latitude
         outfile = fullfile(video_dir, sprintf('latitude_%s.avi', colorby));
-        make_cross_section_video(video_files, latPlane, outfile, video_fps, colorby, 'Latitude ring', latitude_view);
+        make_cross_section_video(video_files, latPlane, outfile, video_fps, colorby, ...
+                                  'Latitude ring', latitude_view, colormapName);
     end
     if flag_longitude
         outfile = fullfile(video_dir, sprintf('longitude_%s.avi', colorby));
-        make_cross_section_video(video_files, lonPlane, outfile, video_fps, colorby, 'Longitude ring', longitude_view);
+        make_cross_section_video(video_files, lonPlane, outfile, video_fps, colorby, ...
+                                  'Longitude ring', longitude_view, colormapName);
     end
 end

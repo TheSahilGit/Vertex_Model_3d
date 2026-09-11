@@ -179,7 +179,14 @@ list_diagnostics.m         % (same, for the diagnostics series)
 select_snapshots.m         % pick out an array (or scalar) of saved
                             % iteration numbers from a list_snapshots.m result
 cell_faces_matrix.m        % snapshot -> patch()-ready Faces matrix
-tissue_color_values.m      % snapshot + colouring mode -> per-cell scalars
+cell_lateral_area.m        % snapshot -> per-cell lateral (cell-cell wall) area,
+                            % computed from raw geometry (not stored in the
+                            % snapshot the way apical/basal area are)
+tissue_color_values.m      % snapshot + colouring mode -> per-cell scalars --
+                            % 'nsides', 'volume'/'volume_abs', 'area'/
+                            % 'apical_area', 'basal_area'/'basal_area_abs',
+                            % 'lateral_area', 'total_area', 'shapefactor'
+                            % (the 3-D shape index S_total/V^(2/3))
 plot_tissue_3d.m           % standard whole-tissue 3D plot (colorbar, title)
 plot_cross_section.m       % ring cross-section: hollow interior + individual
                             % cell shapes, per-cell coloured; cut by either an
@@ -194,7 +201,8 @@ make_cross_section_video.m % (same, for a single cross-section view --
 
 ```matlab
 S = read_vertex_snapshot('data/example/snap_00005000.dat');
-plot_tissue_3d(S, 'nsides');       % or 'volume' / 'area'
+plot_tissue_3d(S, 'nsides');                     % or 'volume', 'shapefactor', ...
+plot_tissue_3d(S, 'shapefactor', 'ColorMap', 'turbo');  % any built-in colormap name
 plot_cross_section(S, 'y', 0.0);   % legacy form: cut through the sphere centre
 
 [latPlane, lonPlane] = ring_planes_for_location(S, 7);   % cell 7's own location
@@ -230,7 +238,12 @@ flag_tissue     = true;    % make the whole-tissue (outside) view
 flag_latitude   = true;    % make the latitude-ring cross-section view
 flag_longitude  = true;    % make the longitude-ring cross-section view
 
-colorby = 'nsides';    % 'nsides' | 'volume' | 'area' -- colouring for all three
+colorby = 'nsides';    % colouring for all three -- see tissue_color_values.m
+                        % for the full list ('nsides', 'volume'/'volume_abs',
+                        % 'area'/'apical_area', 'basal_area'/'basal_area_abs',
+                        % 'lateral_area', 'total_area', 'shapefactor')
+colormapName = 'parula'; % any built-in MATLAB colormap name, e.g. 'turbo',
+                        % 'jet', 'hot', 'cool', 'copper', 'bone'
 ref_location = 1;       % which cell/location the latitude and longitude
                         % rings are cut through -- EITHER a cell index
                         % (e.g. 1) OR an explicit [x y z] point (e.g.

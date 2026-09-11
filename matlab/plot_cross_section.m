@@ -42,6 +42,14 @@ function fig = plot_cross_section(S, plane, varargin)
 %       from the plane's own normal -- e.g. a view you found by hand
 %       (rotate the figure, then read it back with [az,el]=view(gca))
 %       and want reproduced exactly on every frame of a video.
+%   plot_cross_section(S, latPlane, 'ColorMap', 'turbo')
+%       any built-in MATLAB colormap name (default 'parula').
+%   plot_cross_section(S, latPlane, 'CVal', cval, 'CBLabel', cblabel)
+%       use this already-computed per-ALIVE-cell colour vector (and its
+%       label), in the same order as find(S.cell_alive), instead of
+%       calling tissue_color_values(S,colorby) again -- see
+%       plot_tissue_3d.m's own 'CVal' for why (avoids paying for an
+%       expensive colouring mode like 'shapefactor' twice per video frame).
 %
 % S is a struct from read_vertex_snapshot.m.
 
@@ -78,6 +86,9 @@ p.addParameter('ColorBy', 'volume');
 p.addParameter('CLim', []);
 p.addParameter('Title', '');
 p.addParameter('View', []);
+p.addParameter('ColorMap', 'parula');
+p.addParameter('CVal', []);
+p.addParameter('CBLabel', '');
 p.parse(rest{:});
 fig_in   = p.Results.Figure;
 ax_in    = p.Results.Axes;
@@ -85,13 +96,19 @@ colorby  = p.Results.ColorBy;
 clim_in  = p.Results.CLim;
 title_label = p.Results.Title;
 view_in  = p.Results.View;
+cmap_name = p.Results.ColorMap;
 
 FONT_SIZE  = 26;
 TITLE_SIZE = 30;
 
 % ---- per-cell colour value for every alive cell (same definition as
 % plot_tissue_3d.m), looked up per ring cell below ----
-[cval_alive, cblabel] = tissue_color_values(S, colorby);
+if isempty(p.Results.CVal)
+    [cval_alive, cblabel] = tissue_color_values(S, colorby);
+else
+    cval_alive = p.Results.CVal;
+    cblabel = p.Results.CBLabel;
+end
 cval_map = zeros(S.n_cell, 1);
 cval_map(S.cell_alive) = cval_alive;
 
@@ -220,7 +237,7 @@ if isempty(ax_in) && ~isempty(title_label)
     ax.Position = [0.02 0.04 0.78 0.80];
 end
 
-colormap(ax, parula)
+colormap(ax, cmap_name)
 if isempty(clim_in)
     if max(cval_alive) > min(cval_alive)
         clim(ax, [min(cval_alive), max(cval_alive)]);

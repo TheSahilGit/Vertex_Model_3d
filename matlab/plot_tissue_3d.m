@@ -24,6 +24,21 @@ function fig = plot_tissue_3d(S, colorby, varargin)
 %       prepend a label above the usual "t = ..." title, so a saved
 %       frame/video says which view it is.
 %
+%   plot_tissue_3d(..., 'ColorMap', 'turbo')
+%       any built-in MATLAB colormap name (default 'parula') -- e.g.
+%       'turbo', 'jet', 'hot', 'cool', 'copper', 'bone', 'hsv'.
+%
+%   plot_tissue_3d(..., 'CVal', cval, 'CBLabel', cblabel)
+%       use this already-computed per-cell colour vector (and its
+%       label) instead of calling tissue_color_values(S,colorby) again
+%       -- COLORBY is then ignored for colouring purposes (still used
+%       for nothing else, so may be left as whatever). For 'shapefactor'
+%       et al., which need cell_lateral_area.m's geometry computation,
+%       this lets a whole video (make_tissue_video.m) compute each
+%       frame's values ONCE and reuse them, instead of paying for that
+%       computation twice per frame (once for the video's global
+%       colour-scale scan, once here).
+%
 % S is a struct from read_vertex_snapshot.m.
 
 if nargin < 2 || isempty(colorby)
@@ -34,17 +49,26 @@ p.addParameter('Figure', []);
 p.addParameter('Axes', []);
 p.addParameter('Title', '');
 p.addParameter('CLim', []);
+p.addParameter('ColorMap', 'parula');
+p.addParameter('CVal', []);
+p.addParameter('CBLabel', '');
 p.parse(varargin{:});
 fig_in  = p.Results.Figure;
 ax_in   = p.Results.Axes;
 clim_in = p.Results.CLim;
 title_label = p.Results.Title;
+cmap_name = p.Results.ColorMap;
 
 FONT_SIZE   = 26;  % ~2.5x the MATLAB default (10), per user request
 TITLE_SIZE  = 30;
 
 F = cell_faces_matrix(S);
-[cval, cblabel] = tissue_color_values(S, colorby);
+if isempty(p.Results.CVal)
+    [cval, cblabel] = tissue_color_values(S, colorby);
+else
+    cval = p.Results.CVal;
+    cblabel = p.Results.CBLabel;
+end
 
 if ~isempty(ax_in)
     ax = ax_in;
@@ -86,7 +110,7 @@ xlim(ax, [-R R]); ylim(ax, [-R R]); zlim(ax, [-R R]);
 
 view(ax, 35, 20)
 camlight(ax, 'headlight'); lighting(ax, 'gouraud'); material(ax, 'dull')
-colormap(ax, parula)
+colormap(ax, cmap_name)
 
 if isempty(clim_in)
     if max(cval) > min(cval)
