@@ -1720,29 +1720,47 @@ moment of the final \texttt{do\_T2} call, two ratios are compared:
 i.e. how compressed the apical face is relative to \emph{its own}
 target, versus how compressed the basal face is relative to
 \emph{its own} target (Section~\ref{sec:energy}'s $A_i^0$ and
-$A_i^{0,\mathrm{bas}}$). Whichever face is proportionally \emph{more}
-compressed is taken as the side the cell is being squeezed out toward.
+$A_i^{0,\mathrm{bas}}$). Whichever face is proportionally \emph{less}
+compressed -- the larger ratio, the one that has kept more of its own
+area -- is taken as the side the cell is being squeezed out toward.
 
 \begin{physbox}
-\textbf{Why a deadband, and how the count is kept.} $A_{\mathrm{last}}$
-and $A^{\mathrm{bas}}_{\mathrm{last}}$ are ordinary instantaneous
-quantities, recomputed by \texttt{compute\_forces} every single step
-(Section~\ref{sec:forces}) -- they fluctuate step to step like any
-other dynamical quantity. A bare comparison
-($\text{ratio}_{\mathrm{api}} < \text{ratio}_{\mathrm{bas}}$, direction
-apical, and vice versa) would therefore flicker unpredictably whenever
-the two ratios happen to be close, misreporting noise as a real
-directional bias. \texttt{T4\_direction\_deadband} (default $0.05$)
-fixes this by requiring a \emph{margin}: apical is only recorded when
-$\text{ratio}_{\mathrm{api}}$ is more than the deadband \emph{below}
-$\text{ratio}_{\mathrm{bas}}$ (and symmetrically for basal); every
-event that is closer than that is bucketed as \emph{ambiguous} instead
-of being forced arbitrarily to one side or the other:
+\textbf{Why the \emph{less}-compressed face, not the more-compressed
+one -- checked against the actual forces, not assumed.} The first
+guess is usually the opposite of this: surely the cell gets pushed
+out toward whichever face is \emph{more} squeezed? Checking directly
+against this code's own analytic forces (\texttt{tetra\_vol\_grad}/
+\texttt{tri\_area\_grad}, exactly as used in Section~\ref{sec:forces})
+on a synthetic tapered cell says otherwise. The lateral-tension term
+acts like a drawstring running around each ring's own perimeter, and a
+\emph{bigger} ring simply has more perimeter for that drawstring to
+grip -- so a positive $\Lambda$ cinches the wider face in harder, in
+exactly the same way squeezing a party balloon or a toothpaste tube
+near the fat end pushes material out through the narrow end, not the
+other way around. Numerically this held up consistently, and was
+mirror-symmetric in which face was apical vs.\ basal: under
+compression, the \emph{wider}-targeted face is pulled in relatively
+harder, while the \emph{narrower}-targeted face relatively holds onto
+its own area. So the face that keeps more of its area -- the larger
+ratio -- is the one the cell is escaping through, and the other is the
+one pinching shut behind it.
+
+$A_{\mathrm{last}}$ and $A^{\mathrm{bas}}_{\mathrm{last}}$ are ordinary
+instantaneous quantities, recomputed by \texttt{compute\_forces} every
+single step -- they fluctuate step to step like any other dynamical
+quantity. A bare comparison would therefore flicker unpredictably
+whenever the two ratios happen to be close, misreporting noise as a
+real directional bias. \texttt{T4\_direction\_deadband} (default
+$0.05$) fixes this by requiring a \emph{margin}: apical is only
+recorded when $\text{ratio}_{\mathrm{api}}$ is more than the deadband
+\emph{above} $\text{ratio}_{\mathrm{bas}}$ (and symmetrically for
+basal); every event closer than that is bucketed as \emph{ambiguous}
+instead of being forced arbitrarily to one side or the other:
 \begin{equation}
   \text{direction} =
   \begin{cases}
-    \text{apical}, & \text{ratio}_{\mathrm{api}} < \text{ratio}_{\mathrm{bas}} - \texttt{deadband} \\
-    \text{basal}, & \text{ratio}_{\mathrm{bas}} < \text{ratio}_{\mathrm{api}} - \texttt{deadband} \\
+    \text{apical}, & \text{ratio}_{\mathrm{api}} > \text{ratio}_{\mathrm{bas}} + \texttt{deadband} \\
+    \text{basal}, & \text{ratio}_{\mathrm{bas}} > \text{ratio}_{\mathrm{api}} + \texttt{deadband} \\
     \text{ambiguous}, & \text{otherwise.}
   \end{cases}
 \end{equation}

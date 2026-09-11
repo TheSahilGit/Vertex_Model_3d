@@ -61,11 +61,27 @@ module mod_T4
   ! relative to its own target -- both ratios already available with no
   ! new geometry:
   !   ratio_api = A_last / A0,   ratio_bas = A_bas_last / A0_bas
-  ! whichever face is proportionally MORE compressed is taken to be the
-  ! side the cell is being squeezed out of. A small deadband
-  ! (T4_direction_deadband) buckets near-tie cases as "ambiguous" rather
-  ! than forcing a noisy call either way, since A_last/A_bas_last are
-  ! instantaneous quantities recomputed every step.
+  ! whichever face is proportionally LESS compressed (the larger ratio)
+  ! is taken to be the side the cell is being squeezed out toward.
+  !
+  ! This was checked directly against this code's own analytic forces
+  ! (mod_geometry's tetra_vol_grad/tri_area_grad, exactly as used in
+  ! Force.f90) on a synthetic tapered ("wedge") cell, rather than
+  ! assumed: the lateral-tension term acts like a drawstring around
+  ! each ring's own perimeter, and a BIGGER ring has more perimeter for
+  ! that drawstring to grip, so it gets cinched in harder -- like
+  ! squeezing a party balloon or a toothpaste tube, where squeezing
+  ! near the fat end pushes material out the narrow end, not the other
+  ! way around. So under compression, the WIDER face (bigger target
+  ! area) is pulled in relatively harder, while the NARROWER face
+  ! relatively holds its own area -- confirmed numerically, and mirror-
+  ! symmetric in which face is apical vs basal. Hence "less compressed,
+  ! bigger ratio" = "narrower target, wins" = the exit direction.
+  !
+  ! A small deadband (T4_direction_deadband) buckets near-tie cases as
+  ! "ambiguous" rather than forcing a noisy call either way, since
+  ! A_last/A_bas_last are instantaneous quantities recomputed every
+  ! step.
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -158,7 +174,9 @@ contains
   !------------------------------------------------------------------
   ! Classify which face a crowded cell is being squeezed out toward,
   ! from how compressed each face is relative to its own target. See
-  ! the module header for the physical reasoning.
+  ! the module header for the physical reasoning (verified against the
+  ! code's own analytic forces, not assumed): the LESS compressed face
+  ! (the larger ratio) is the exit direction.
   integer(i4) function classify_T4_direction(icell) result(code)
     integer(i4), intent(in) :: icell
     real(dp) :: ratio_api, ratio_bas
@@ -166,10 +184,10 @@ contains
     ratio_api = cells(icell)%A_last     / cells(icell)%A0
     ratio_bas = cells(icell)%A_bas_last / cells(icell)%A0_bas
 
-    if (ratio_api < ratio_bas - T4_direction_deadband) then
-      code = T4_DIR_APICAL      ! apical face proportionally more compressed
-    else if (ratio_bas < ratio_api - T4_direction_deadband) then
-      code = T4_DIR_BASAL       ! basal face proportionally more compressed
+    if (ratio_api > ratio_bas + T4_direction_deadband) then
+      code = T4_DIR_APICAL      ! apical face proportionally LESS compressed -> exits apically
+    else if (ratio_bas > ratio_api + T4_direction_deadband) then
+      code = T4_DIR_BASAL       ! basal face proportionally LESS compressed -> exits basally
     else
       code = T4_DIR_AMBIGUOUS   ! within the deadband -- no confident call
     end if
