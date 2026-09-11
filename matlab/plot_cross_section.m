@@ -298,4 +298,6 @@ else
     % 2-line case keeps both lines actually visible.
     title(ax, {title_label, sprintf('t = %.4g', S.time)}, 'FontSize', round(TITLE_SIZE*0.65));
 end
+
+set(gcf, 'Renderer', 'Painters')
 end

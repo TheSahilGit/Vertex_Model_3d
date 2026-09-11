@@ -139,9 +139,9 @@
   L_T1_threshold        = 0.05d0
   A_T2_threshold        = 0.01d0
   it_topology_check     = 5
-  division_enable       = .false.
-  it_division_check     = 500
-  V_division_threshold  = 1.4d0
+  division_enable       = .true.
+  it_division_check     = 1
+  V_division_threshold  = 1.2d0
 
   T4_enable             = .false.
   V_extrusion_threshold = 0.92d0

@@ -40,7 +40,7 @@ flag_latitude   = true;    % make the latitude-ring cross-section view
 flag_longitude  = true;    % make the longitude-ring cross-section view
                             % (all three independent -- run any subset)
 
-colorby = 'shapefactor';         % colouring for all three (individual cells
+colorby = 'volume_abs';         % colouring for all three (individual cells
                              % shown as one solid colour each on the
                              % rings, too) -- see tissue_color_values.m
                              % for the full list and exact definitions:
@@ -54,7 +54,7 @@ colorby = 'shapefactor';         % colouring for all three (individual cells
 colormapName = 'parula';    % any built-in MATLAB colormap name, e.g.
                              % 'turbo', 'jet', 'hot', 'cool', 'copper', 'bone'
 
-ref_location = 10;            % which cell/location the latitude and
+ref_location = 1;            % which cell/location the latitude and
                               % longitude rings are cut through -- EITHER
                               % a cell index (e.g. 1) OR an explicit
                               % [x y z] point (e.g. [5 0 9]). Resolved
@@ -79,7 +79,7 @@ longitude_view = [  -9.195907331898637, 10.77613463554659];  % found by hand
 %   video_its = 5000;            % just one snapshot -> a single plot
 %   video_its = [];               % every saved snapshot
 
-video_its =100:1000:100000;
+video_its = 100;
 
 video_fps = 4;                     % frames per second for saved videos
 video_dir = fullfile(project_root, 'videos');
