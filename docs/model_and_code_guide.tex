@@ -1710,58 +1710,70 @@ point-collapse of a large polygon would.
 \textbf{Direction: which way was it squeezed out?} Real live-cell
 extrusion can go either way -- apically (out through the outer
 surface) or basally (delaminating toward the lumen) -- and it is worth
-recording which, per event, using data every cell already has. At the
-moment of the final \texttt{do\_T2} call, two ratios are compared:
+recording which, per event. At the moment of the final \texttt{do\_T2}
+call, the cell's own two rings each get their \emph{net resultant
+radial force} summed from the code's own analytic forces --
+\texttt{f\_api}/\texttt{f\_bas}, exactly as left by that step's
+\texttt{compute\_forces} (Section~\ref{sec:forces}), with every energy
+term already included (volume, apical/basal area and perimeter,
+lateral tension). Since the shell is centred on the origin, the radial
+direction at vertex $j$ is simply $\hat r_j = \vec r_j / |\vec r_j|$,
+so
 \begin{equation}
-  \text{ratio}_{\mathrm{api}} = \frac{A_{\mathrm{last}}}{A^0}, \qquad
-  \text{ratio}_{\mathrm{bas}} = \frac{A^{\mathrm{bas}}_{\mathrm{last}}}{A^{0,\mathrm{bas}}},
-  \label{eq:T4-direction-ratios}
+  F^{\mathrm{net}}_{\mathrm{api}} = \sum_{j \,\in\, \text{ring}} \vec f^{\,\mathrm{api}}_j \cdot \hat r^{\,\mathrm{api}}_j,
+  \qquad
+  F^{\mathrm{net}}_{\mathrm{bas}} = \sum_{j \,\in\, \text{ring}} \vec f^{\,\mathrm{bas}}_j \cdot \hat r^{\,\mathrm{bas}}_j,
+  \label{eq:T4-direction-forces}
 \end{equation}
-i.e. how compressed the apical face is relative to \emph{its own}
-target, versus how compressed the basal face is relative to
-\emph{its own} target (Section~\ref{sec:energy}'s $A_i^0$ and
-$A_i^{0,\mathrm{bas}}$). Whichever face is proportionally \emph{less}
-compressed -- the larger ratio, the one that has kept more of its own
-area -- is taken as the side the cell is being squeezed out toward.
+summed over that cell's own apical/basal vertex columns. Whichever
+ring's net radial force is more \emph{outward} (the larger, i.e.\ the
+less negative, of the two) is being pushed out rather than squeezed
+in, and is taken as the side the cell is being squeezed out toward.
 
 \begin{physbox}
-\textbf{Why the \emph{less}-compressed face, not the more-compressed
-one -- checked against the actual forces, not assumed.} The first
-guess is usually the opposite of this: surely the cell gets pushed
-out toward whichever face is \emph{more} squeezed? Checking directly
-against this code's own analytic forces (\texttt{tetra\_vol\_grad}/
-\texttt{tri\_area\_grad}, exactly as used in Section~\ref{sec:forces})
-on a synthetic tapered cell says otherwise. The lateral-tension term
-acts like a drawstring running around each ring's own perimeter, and a
-\emph{bigger} ring simply has more perimeter for that drawstring to
-grip -- so a positive $\Lambda$ cinches the wider face in harder, in
-exactly the same way squeezing a party balloon or a toothpaste tube
-near the fat end pushes material out through the narrow end, not the
-other way around. Numerically this held up consistently, and was
-mirror-symmetric in which face was apical vs.\ basal: under
-compression, the \emph{wider}-targeted face is pulled in relatively
-harder, while the \emph{narrower}-targeted face relatively holds onto
-its own area. So the face that keeps more of its area -- the larger
-ratio -- is the one the cell is escaping through, and the other is the
-one pinching shut behind it.
+\textbf{Why the force, and why the more-outward ring -- checked
+against a synthetic wedge, not assumed.} An earlier version of this
+rule instead compared how compressed each face's \emph{area} is
+relative to its own target, $\text{ratio}_{\mathrm{api}}=A_{\mathrm{last}}/A^0$
+vs.\ $\text{ratio}_{\mathrm{bas}}=A^{\mathrm{bas}}_{\mathrm{last}}/A^{0,\mathrm{bas}}$,
+and took the \emph{less}-compressed face (the larger ratio) as the
+exit direction. That rule is physically intuitive and was itself
+checked directly against this code's own analytic forces
+(\texttt{tetra\_vol\_grad}/\texttt{tri\_area\_grad}, exactly as used in
+Section~\ref{sec:forces}) on a synthetic tapered cell: the
+lateral-tension term acts like a drawstring running around each ring's
+own perimeter, and a \emph{bigger} ring simply has more perimeter for
+that drawstring to grip -- so a positive $\Lambda$ cinches the wider
+face in harder, exactly the way squeezing a party balloon or a
+toothpaste tube near the fat end pushes material out through the
+narrow end, not the other way around. The net-resultant-force rule of
+Eq.~\eqref{eq:T4-direction-forces} was checked against that very same
+synthetic geometry and agrees with the area-ratio rule in every case
+tested -- but it is the more fundamental of the two: it reads the
+mechanical force straight out of the energy functional, rather than
+inferring direction indirectly from a compressed-area proxy, so it is
+what this code actually implements.
 
-$A_{\mathrm{last}}$ and $A^{\mathrm{bas}}_{\mathrm{last}}$ are ordinary
-instantaneous quantities, recomputed by \texttt{compute\_forces} every
-single step -- they fluctuate step to step like any other dynamical
-quantity. A bare comparison would therefore flicker unpredictably
-whenever the two ratios happen to be close, misreporting noise as a
-real directional bias. \texttt{T4\_direction\_deadband} (default
-$0.05$) fixes this by requiring a \emph{margin}: apical is only
-recorded when $\text{ratio}_{\mathrm{api}}$ is more than the deadband
-\emph{above} $\text{ratio}_{\mathrm{bas}}$ (and symmetrically for
-basal); every event closer than that is bucketed as \emph{ambiguous}
-instead of being forced arbitrarily to one side or the other:
+$F^{\mathrm{net}}_{\mathrm{api}}$ and $F^{\mathrm{net}}_{\mathrm{bas}}$
+are ordinary instantaneous quantities, recomputed every single step --
+they fluctuate step to step like any other dynamical quantity. A bare
+comparison would therefore flicker unpredictably whenever the two are
+close, misreporting noise as a real directional bias.
+\texttt{T4\_direction\_deadband} (default $0.05$) fixes this the same
+way it always did, only now applied to the two net forces' own
+\emph{fractional} difference -- a dimensionless quantity in $[-1,1]$,
+so the deadband keeps exactly the same meaning and default it had
+under the area-ratio rule:
 \begin{equation}
   \text{direction} =
   \begin{cases}
-    \text{apical}, & \text{ratio}_{\mathrm{api}} > \text{ratio}_{\mathrm{bas}} + \texttt{deadband} \\
-    \text{basal}, & \text{ratio}_{\mathrm{bas}} > \text{ratio}_{\mathrm{api}} + \texttt{deadband} \\
-    \text{ambiguous}, & \text{otherwise.}
+    \text{apical}, & \dfrac{F^{\mathrm{net}}_{\mathrm{api}} - F^{\mathrm{net}}_{\mathrm{bas}}}
+                          {\lvert F^{\mathrm{net}}_{\mathrm{api}}\rvert + \lvert F^{\mathrm{net}}_{\mathrm{bas}}\rvert}
+                          > \texttt{deadband} \\[1.2ex]
+    \text{basal}, & \dfrac{F^{\mathrm{net}}_{\mathrm{bas}} - F^{\mathrm{net}}_{\mathrm{api}}}
+                          {\lvert F^{\mathrm{net}}_{\mathrm{api}}\rvert + \lvert F^{\mathrm{net}}_{\mathrm{bas}}\rvert}
+                          > \texttt{deadband} \\[1.2ex]
+    \text{ambiguous}, & \text{otherwise (or both nets $\approx 0$).}
   \end{cases}
 \end{equation}
 Every completed T4 event increments exactly one of three running
@@ -2419,11 +2431,13 @@ ids, not a cell id.
 \paragraph{Classifies which face a cell was squeezed toward
 (\texttt{classify\_T4\_direction}).} \textbf{Input:} a cell id
 \texttt{icell} (read just before it is handed to \texttt{do\_T2}, while
-its \texttt{\%A\_last}/\texttt{\%A\_bas\_last} still reflect its final
-compressed shape). \textbf{Output:} one of three named integer
-constants, \texttt{T4\_DIR\_APICAL}, \texttt{T4\_DIR\_BASAL}, or
-\texttt{T4\_DIR\_AMBIGUOUS}, via the deadbanded comparison of
-Eq.~\ref{eq:T4-direction-ratios}. \textbf{Calls:} none.
+\texttt{f\_api}/\texttt{f\_bas} and \texttt{r\_api}/\texttt{r\_bas}
+still reflect its final compressed shape and this step's forces).
+\textbf{Output:} one of three named integer constants,
+\texttt{T4\_DIR\_APICAL}, \texttt{T4\_DIR\_BASAL}, or
+\texttt{T4\_DIR\_AMBIGUOUS}, via the deadbanded comparison of the two
+rings' net resultant radial force, Eq.~\ref{eq:T4-direction-forces}.
+\textbf{Calls:} \texttt{norm3}.
 
 \subsection{\texttt{Cell\_Division.f90} -- cell division}
 Section~\ref{sec:division} already derived this file's algorithm in

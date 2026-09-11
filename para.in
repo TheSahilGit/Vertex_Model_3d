@@ -66,9 +66,13 @@
 ! V_extrusion_threshold : a cell is crowded (extrusion-eligible) when
 !             V_last < V_extrusion_threshold * V0.
 ! T4_direction_deadband : extrusion direction (apical-ward vs basal-ward)
-!             is classified by comparing A_last/A0 to A_bas_last/A0_bas
-!             at the moment of removal; if the two ratios differ by less
-!             than this deadband the event is counted as
+!             is classified from the ACTUAL net resultant radial force on
+!             the cell's own apical ring vs its own basal ring (summed
+!             from f_api/f_bas, the real analytic forces, projected onto
+!             each vertex's radial direction) at the moment of removal --
+!             whichever ring's net force is more outward is the exit
+!             direction. If the two nets' fractional difference is
+!             smaller than this deadband, the event is counted as
 !             direction-ambiguous rather than forced to either side.
 !             OPTIONAL, defaults to 0.05.
 !
@@ -87,7 +91,7 @@
 
   K_V                   = 1.0d0
   K_A                   = 1.0d0
-  K_P                   = -0.02d0
+  K_P                   = 0.02d0
   Lambda_line           = 1.0d0
   K_A_bas               = 1.0d0
   K_P_bas               = 0.1d0
@@ -96,7 +100,7 @@
   A0_bas_scale          = 1.0d0
 
   zeta_friction         = 1.0d0
-  kBT                   = 0.0d0
+  kBT                   = 0.1d0
   dt                    = 1.0d-3
   n_steps               = 100000
   it_dumps              = 100
@@ -108,8 +112,8 @@
   it_division_check     = 500
   V_division_threshold  = 1.4d0
 
-  T4_enable             = .false.
-  V_extrusion_threshold = 0.6d0
+  T4_enable             = .true.
+  V_extrusion_threshold = 0.83d0
   T4_direction_deadband = 0.05d0
 
   random_seed            = 12345

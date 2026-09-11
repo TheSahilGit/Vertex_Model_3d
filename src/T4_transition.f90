@@ -56,31 +56,48 @@ module mod_T4
   ! starts.
   !
   ! Direction (apical-ward vs basal-ward): classified at the moment of
-  ! final removal by comparing how compressed the apical face is
-  ! relative to its own target against how compressed the basal face is
-  ! relative to its own target -- both ratios already available with no
-  ! new geometry:
-  !   ratio_api = A_last / A0,   ratio_bas = A_bas_last / A0_bas
-  ! whichever face is proportionally LESS compressed (the larger ratio)
-  ! is taken to be the side the cell is being squeezed out toward.
+  ! final removal directly from the ACTUAL mechanical force on the
+  ! cell's own two rings -- not from an area-compression proxy. Every
+  ! step's compute_forces (Force.f90) already leaves f_api/f_bas holding
+  ! the full analytic force (every energy term: volume, apical/basal
+  ! area and perimeter, lateral tension) on every vertex column, so no
+  ! new force computation is needed here, only a projection and a sum.
   !
-  ! This was checked directly against this code's own analytic forces
-  ! (mod_geometry's tetra_vol_grad/tri_area_grad, exactly as used in
-  ! Force.f90) on a synthetic tapered ("wedge") cell, rather than
-  ! assumed: the lateral-tension term acts like a drawstring around
-  ! each ring's own perimeter, and a BIGGER ring has more perimeter for
-  ! that drawstring to grip, so it gets cinched in harder -- like
-  ! squeezing a party balloon or a toothpaste tube, where squeezing
-  ! near the fat end pushes material out the narrow end, not the other
-  ! way around. So under compression, the WIDER face (bigger target
-  ! area) is pulled in relatively harder, while the NARROWER face
-  ! relatively holds its own area -- confirmed numerically, and mirror-
-  ! symmetric in which face is apical vs basal. Hence "less compressed,
-  ! bigger ratio" = "narrower target, wins" = the exit direction.
+  ! Since the shell is centred on the origin, "radial" at a vertex j is
+  ! simply r_api(:,j)/|r_api(:,j)| (or r_bas). Summing the radial
+  ! component of the real force over a ring's own vertices gives that
+  ! ring's net resultant radial force:
+  !   Fnet_api = Sum_{j in ring}  f_api(:,j) . rhat(r_api(:,j))
+  !   Fnet_bas = Sum_{j in ring}  f_bas(:,j) . rhat(r_bas(:,j))
+  ! Whichever ring's net force is more OUTWARD (larger/less negative) is
+  ! being pushed out rather than squeezed in -- that is the exit
+  ! direction.
   !
-  ! A small deadband (T4_direction_deadband) buckets near-tie cases as
-  ! "ambiguous" rather than forcing a noisy call either way, since
-  ! A_last/A_bas_last are instantaneous quantities recomputed every
+  ! This replaces an earlier version of this rule that instead compared
+  ! how compressed each face's area is relative to its own target
+  ! (ratio_api = A_last/A0 vs ratio_bas = A_bas_last/A0_bas, the larger
+  ! ratio -- the less-compressed face -- being taken as the exit side).
+  ! That area-ratio rule is physically intuitive and was itself checked
+  ! against this code's own analytic forces (tetra_vol_grad/
+  ! tri_area_grad, exactly as used in Force.f90) on a synthetic tapered
+  ! ("wedge") cell: the lateral-tension term acts like a drawstring
+  ! around each ring's own perimeter, and a BIGGER ring has more
+  ! perimeter for that drawstring to grip, so it gets cinched in harder
+  ! -- like squeezing a party balloon or a toothpaste tube, where
+  ! squeezing near the fat end pushes material out the narrow end. The
+  ! net-resultant-force rule below was checked against that same
+  ! synthetic geometry and agrees with the area-ratio rule in every
+  ! case, but it is the more fundamental of the two -- it reads the
+  ! mechanical force straight out of the energy functional instead of
+  ! inferring direction indirectly from a compressed-area ratio -- so it
+  ! is what is actually implemented here.
+  !
+  ! The deadband compares the two net forces via their FRACTIONAL
+  ! difference, (Fnet_api - Fnet_bas) / (|Fnet_api| + |Fnet_bas|), a
+  ! dimensionless quantity in [-1,1] -- so T4_direction_deadband keeps
+  ! the same meaning and default (0.05) it always had. Near-tie cases
+  ! are bucketed as "ambiguous" rather than forcing a noisy call either
+  ! way, since f_api/f_bas are instantaneous quantities recomputed every
   ! step.
   use mod_kinds
   use mod_parameters
@@ -173,21 +190,35 @@ contains
 
   !------------------------------------------------------------------
   ! Classify which face a crowded cell is being squeezed out toward,
-  ! from how compressed each face is relative to its own target. See
-  ! the module header for the physical reasoning (verified against the
-  ! code's own analytic forces, not assumed): the LESS compressed face
-  ! (the larger ratio) is the exit direction.
+  ! from the actual net resultant radial force on each of its own two
+  ! rings. See the module header for the full reasoning: the ring whose
+  ! net radial force is more OUTWARD is the exit direction.
   integer(i4) function classify_T4_direction(icell) result(code)
     integer(i4), intent(in) :: icell
-    real(dp) :: ratio_api, ratio_bas
+    integer(i4) :: n, kk, j
+    real(dp) :: Fnet_api, Fnet_bas, rn, denom, frac
 
-    ratio_api = cells(icell)%A_last     / cells(icell)%A0
-    ratio_bas = cells(icell)%A_bas_last / cells(icell)%A0_bas
+    n = cells(icell)%n
+    Fnet_api = 0.0_dp; Fnet_bas = 0.0_dp
+    do kk = 1, n
+      j = cells(icell)%vlist(kk)
+      rn = norm3(r_api(:, j))
+      if (rn > 1.0e-300_dp) Fnet_api = Fnet_api + dot_product(f_api(:, j), r_api(:, j)) / rn
+      rn = norm3(r_bas(:, j))
+      if (rn > 1.0e-300_dp) Fnet_bas = Fnet_bas + dot_product(f_bas(:, j), r_bas(:, j)) / rn
+    end do
 
-    if (ratio_api > ratio_bas + T4_direction_deadband) then
-      code = T4_DIR_APICAL      ! apical face proportionally LESS compressed -> exits apically
-    else if (ratio_bas > ratio_api + T4_direction_deadband) then
-      code = T4_DIR_BASAL       ! basal face proportionally LESS compressed -> exits basally
+    denom = abs(Fnet_api) + abs(Fnet_bas)
+    if (denom < 1.0e-300_dp) then
+      code = T4_DIR_AMBIGUOUS   ! both rings force-free -- no confident call
+      return
+    end if
+    frac = (Fnet_api - Fnet_bas) / denom
+
+    if (frac > T4_direction_deadband) then
+      code = T4_DIR_APICAL      ! apical ring's net radial force relatively more outward -> exits apically
+    else if (frac < -T4_direction_deadband) then
+      code = T4_DIR_BASAL       ! basal ring's net radial force relatively more outward -> exits basally
     else
       code = T4_DIR_AMBIGUOUS   ! within the deadband -- no confident call
     end if
