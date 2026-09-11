@@ -249,7 +249,19 @@ camlight(ax, 'headlight'); lighting(ax, 'gouraud'); material(ax, 'dull')
 ax.CameraPositionMode  = 'manual';
 ax.CameraTargetMode    = 'manual';
 ax.CameraUpVectorMode  = 'manual';
-ax.CameraViewAngleMode = 'manual';  % freeze zoom AFTER Position/limits are final
+% 'axis vis3d' freezes CameraViewAngle (redundant with the manual Mode
+% assignments above, which already pin campos/camtarget/camup/camva at
+% the exact values just computed -- vis3d preserves them, verified
+% directly, rather than recomputing anything) AND, unlike setting
+% CameraViewAngleMode by hand alone, ALSO freezes PlotBoxAspectRatio.
+% That second one is the part that actually matters here: left on
+% 'auto', MATLAB continuously re-fits the plot box's shape to the axes
+% region for whatever the CURRENT view direction is -- invisible for a
+% single fixed frame, but exactly what shows up as the whole ring
+% appearing to zoom in and out while a user interactively rotates it
+% (e.g. in the figure make_combined_video.m leaves open on its last
+% frame).
+axis(ax, 'vis3d');
 ax.FontSize = FONT_SIZE;
 ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured frames
 

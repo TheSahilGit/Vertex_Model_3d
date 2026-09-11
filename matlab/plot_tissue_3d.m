@@ -112,19 +112,28 @@ if isempty(ax_in)
     cb.Position = [0.80 0.12 0.045 0.76];
 end
 
-% NOW freeze the camera zoom (CameraViewAngle), i.e. what 'axis vis3d'
-% would do -- but only AFTER the axes has its final Position, not
-% before. With CameraViewAngleMode left on 'auto' (the default),
-% MATLAB is free to silently recompute the zoom on any later redraw,
-% which happened partway through an otherwise perfectly smooth
-% simulation (no topology event, no data discontinuity at that time)
-% and showed up as the whole sphere abruptly shrinking for the rest of
-% a video. Freezing it here, once, after Position is final, pins the
-% zoom for good. (Freezing earlier -- e.g. via 'axis vis3d' before
-% Position was set -- locks in the zoom appropriate for the ORIGINAL,
-% not-yet-shrunk axes box, which is the OTHER failure mode: the sphere
-% and title come out mispositioned relative to the smaller box.)
-ax.CameraViewAngleMode = 'manual';
+% NOW freeze the view for good, via 'axis vis3d' -- but only AFTER the
+% axes has its final Position, not before. Freezing earlier locks in
+% the zoom/box shape appropriate for the ORIGINAL, not-yet-shrunk axes
+% box, which is one failure mode (the sphere and title come out
+% mispositioned relative to the smaller box); leaving CameraViewAngle
+% on 'auto' is another (MATLAB silently recomputes the zoom on any
+% later redraw, seen as the whole sphere abruptly shrinking partway
+% through an otherwise perfectly smooth video, no topology event or
+% data discontinuity anywhere near it).
+%
+% 'axis vis3d' (rather than just freezing CameraViewAngleMode by hand,
+% as this line used to) is the one that actually matters for anyone
+% using this figure interactively: it ALSO freezes PlotBoxAspectRatio,
+% not just CameraViewAngle. Leaving PlotBoxAspectRatioMode on 'auto'
+% (as plain CameraViewAngleMode='manual' does) lets MATLAB re-fit the
+% plot box's shape to the axes region for whatever the CURRENT view
+% direction happens to be -- harmless for a fixed, non-interactive
+% video frame, but the moment a user drags to rotate the figure
+% interactively (e.g. the one make_combined_video.m leaves open on its
+% last frame), that continuous re-fit is exactly what shows up as the
+% whole scene appearing to zoom in and out while it rotates.
+axis(ax, 'vis3d');
 
 title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
 end
