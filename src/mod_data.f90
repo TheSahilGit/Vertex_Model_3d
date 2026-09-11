@@ -32,6 +32,18 @@ module mod_data
     real(dp)    :: V_last = 0.0_dp       ! most recent computed volume (set by Force.f90)
     real(dp)    :: A_last = 0.0_dp       ! most recent computed apical area (set by Force.f90)
     real(dp)    :: A_bas_last = 0.0_dp   ! most recent computed basal area (set by Force.f90)
+    real(dp)    :: lambda_own = 0.0_dp   ! this cell's OWN lateral-tension modulus (mod_defect.f90);
+                                          ! every lateral face is shared by 2 cells and each
+                                          ! contributes lambda_own/2 * S_edge (Force.f90), so a
+                                          ! shared edge's real tension is the AVERAGE of its two
+                                          ! owning cells' own values. Set to Lambda_line for every
+                                          ! cell by mesh_init.f90 (so this reproduces plain
+                                          ! Lambda_line everywhere when defect_enable=.false.), then
+                                          ! optionally lowered for a random subset by
+                                          ! mod_defect.f90's seed_defect_cells.
+    logical     :: is_defect = .false.   ! true iff this cell was seeded as a low-adhesion
+                                          ! "defect" cell at t=0 (mod_defect.f90); purely a
+                                          ! diagnostic tag, inherited by both daughters on division
   end type cell_t
 
   ! ---- global mutable state ----

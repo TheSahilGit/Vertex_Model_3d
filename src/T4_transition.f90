@@ -99,6 +99,12 @@ module mod_T4
   ! are bucketed as "ambiguous" rather than forcing a noisy call either
   ! way, since f_api/f_bas are instantaneous quantities recomputed every
   ! step.
+  !
+  ! Defect-cell bookkeeping (mod_defect.f90): attempt_T4_transitions also
+  ! reports how many of its completed removals were cells seeded as
+  ! low-adhesion "defects" (cells(ic)%is_defect, read just before do_T2
+  ! clears that slot), broken down by direction the same way as the
+  ! overall totals -- see mod_defect.f90 for why this exists.
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -114,14 +120,26 @@ module mod_T4
 contains
 
   subroutine attempt_T4_transitions(n_flips, n_extruded, n_extruded_apical, &
-                                     n_extruded_basal, n_extruded_ambiguous)
+                                     n_extruded_basal, n_extruded_ambiguous, &
+                                     n_extruded_defect, n_extruded_defect_apical, &
+                                     n_extruded_defect_basal, n_extruded_defect_ambiguous)
     integer(i4), intent(out) :: n_flips, n_extruded
     integer(i4), intent(out) :: n_extruded_apical, n_extruded_basal, n_extruded_ambiguous
+    ! Same completed-removal count and direction breakdown as above, but
+    ! restricted to cells seeded as "defect" (mod_defect.f90) -- lets the
+    ! defect protocol check whether low-adhesion cells are actually the
+    ! ones getting extruded, and which direction they favour, without
+    ! having to cross-reference is_defect against the totals by hand.
+    integer(i4), intent(out) :: n_extruded_defect
+    integer(i4), intent(out) :: n_extruded_defect_apical, n_extruded_defect_basal, n_extruded_defect_ambiguous
     logical, allocatable :: touched(:)
     integer(i4) :: ic, j, k, dir_code
+    logical :: was_defect
 
     n_flips = 0; n_extruded = 0
     n_extruded_apical = 0; n_extruded_basal = 0; n_extruded_ambiguous = 0
+    n_extruded_defect = 0
+    n_extruded_defect_apical = 0; n_extruded_defect_basal = 0; n_extruded_defect_ambiguous = 0
     if (.not. T4_enable) return
 
     allocate(touched(n_vert_cap))
@@ -135,6 +153,7 @@ contains
         ! Already down to a triangle: one more T1 flip is not meaningful,
         ! finish the removal the same way an ordinary T2 event would.
         dir_code = classify_T4_direction(ic)
+        was_defect = cells(ic)%is_defect   ! read before do_T2 clears the slot
         call do_T2(ic)
         n_extruded = n_extruded + 1
         select case (dir_code)
@@ -145,6 +164,17 @@ contains
         case default
           n_extruded_ambiguous = n_extruded_ambiguous + 1
         end select
+        if (was_defect) then
+          n_extruded_defect = n_extruded_defect + 1
+          select case (dir_code)
+          case (T4_DIR_APICAL)
+            n_extruded_defect_apical = n_extruded_defect_apical + 1
+          case (T4_DIR_BASAL)
+            n_extruded_defect_basal = n_extruded_defect_basal + 1
+          case default
+            n_extruded_defect_ambiguous = n_extruded_defect_ambiguous + 1
+          end select
+        end if
       else
         ! Still crowded and larger than a triangle: shrink it by one side,
         ! via one ordinary T1 flip of its own shortest edge -- this is the

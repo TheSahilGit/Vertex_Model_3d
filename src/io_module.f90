@@ -43,6 +43,12 @@ module mod_io
   !   int32  cumulative_T4_apical     (of which classified apical-ward, per T4_direction_deadband)
   !   int32  cumulative_T4_basal      (of which classified basal-ward)
   !   int32  cumulative_T4_ambiguous  (of which too close to call within the deadband)
+  !   int32  n_defect_seeded          (total cells seeded low-adhesion at t=0; 0 if defect_enable=.false.)
+  !   int32  n_defect_alive           (of those, how many are still alive right now)
+  !   int32  cumulative_T4_defect            (of cumulative_T4, how many were seeded defect cells)
+  !   int32  cumulative_T4_defect_apical     (of which classified apical-ward)
+  !   int32  cumulative_T4_defect_basal      (of which classified basal-ward)
+  !   int32  cumulative_T4_defect_ambiguous  (of which too close to call)
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -129,12 +135,17 @@ contains
   subroutine write_diagnostics(it, time, energy, lumen_volume, outer_area, max_force, &
                                 n_cells, cumulative_T1, cumulative_T2, &
                                 cumulative_T4, cumulative_T4_apical, cumulative_T4_basal, &
-                                cumulative_T4_ambiguous)
+                                cumulative_T4_ambiguous, n_defect_seeded, n_defect_alive, &
+                                cumulative_T4_defect, cumulative_T4_defect_apical, &
+                                cumulative_T4_defect_basal, cumulative_T4_defect_ambiguous)
     integer(i4), intent(in) :: it
     real(dp),    intent(in) :: time, energy, lumen_volume, outer_area, max_force
     integer(i4), intent(in) :: n_cells, cumulative_T1, cumulative_T2
     integer(i4), intent(in) :: cumulative_T4, cumulative_T4_apical
     integer(i4), intent(in) :: cumulative_T4_basal, cumulative_T4_ambiguous
+    integer(i4), intent(in) :: n_defect_seeded, n_defect_alive
+    integer(i4), intent(in) :: cumulative_T4_defect, cumulative_T4_defect_apical
+    integer(i4), intent(in) :: cumulative_T4_defect_basal, cumulative_T4_defect_ambiguous
     character(len=256) :: fname
     integer :: iun
 
@@ -155,6 +166,12 @@ contains
     write(iun) cumulative_T4_apical
     write(iun) cumulative_T4_basal
     write(iun) cumulative_T4_ambiguous
+    write(iun) n_defect_seeded
+    write(iun) n_defect_alive
+    write(iun) cumulative_T4_defect
+    write(iun) cumulative_T4_defect_apical
+    write(iun) cumulative_T4_defect_basal
+    write(iun) cumulative_T4_defect_ambiguous
 
     close(iun)
 

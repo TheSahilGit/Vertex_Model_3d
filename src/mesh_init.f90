@@ -296,6 +296,9 @@ contains
     cells(icell)%vlist = 0
     cells(icell)%vlist(1:deg) = order(1:deg)
     cells(icell)%alive = .true.
+    cells(icell)%lambda_own = Lambda_line   ! plain default; mod_defect.f90 may lower this
+                                             ! for a random subset, after init_mesh() returns
+    cells(icell)%is_defect = .false.
 
     ! orient outward: test fan normal of first 3 ring vertices
     n = cross(r_api(:, cells(icell)%vlist(2)) - r_api(:, cells(icell)%vlist(1)), &

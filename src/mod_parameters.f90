@@ -25,6 +25,10 @@ module mod_parameters
   real(dp)    :: V_extrusion_threshold
   real(dp)    :: T4_direction_deadband
 
+  logical     :: defect_enable
+  real(dp)    :: defect_fraction
+  real(dp)    :: Lambda_line_defect
+
   integer(i4) :: random_seed
   real(dp)    :: capacity_growth_factor
 
@@ -40,6 +44,7 @@ contains
          L_T1_threshold, A_T2_threshold, it_topology_check, &
          division_enable, it_division_check, V_division_threshold, &
          T4_enable, V_extrusion_threshold, T4_direction_deadband, &
+         defect_enable, defect_fraction, Lambda_line_defect, &
          random_seed, capacity_growth_factor
 
     ! default for the one optional/newer key, in case an older
@@ -98,6 +103,10 @@ contains
     end if
     if (capacity_growth_factor < 1.0_dp) then
       write(*,*) 'ERROR: capacity_growth_factor must be >= 1.0.'
+      stop 1
+    end if
+    if (defect_enable .and. (defect_fraction <= 0.0_dp .or. defect_fraction > 1.0_dp)) then
+      write(*,*) 'ERROR: defect_fraction must be in (0,1] when defect_enable is true. Got:', defect_fraction
       stop 1
     end if
 

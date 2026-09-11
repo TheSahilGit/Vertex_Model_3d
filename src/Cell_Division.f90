@@ -224,6 +224,12 @@ contains
     cells(new_cell)%V0     = 0.5_dp * V0_old
     cells(new_cell)%A0     = 0.5_dp * A0_old
     cells(new_cell)%A0_bas = 0.5_dp * A0_bas_old
+    ! both daughters share the parent's own lateral-tension modulus and
+    ! defect tag (mod_defect.f90) -- the parent's slot (cells(parent))
+    ! already keeps its own values untouched above, only the freshly
+    ! allocated new_cell slot needs them copied across explicitly
+    cells(new_cell)%lambda_own = cells(parent)%lambda_own
+    cells(new_cell)%is_defect  = cells(parent)%is_defect
 
     ok = .true.
   end subroutine do_division

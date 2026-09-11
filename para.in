@@ -76,6 +76,25 @@
 !             direction-ambiguous rather than forced to either side.
 !             OPTIONAL, defaults to 0.05.
 !
+! defect_enable : switch the defect-cell protocol on/off. When true, a
+!             random subset of cells is seeded at t=0 (once, right
+!             after the mesh is built and its usual targets are set)
+!             with a LOWER lateral-tension modulus (Lambda_line_defect)
+!             than the rest of the tissue (plain Lambda_line) -- see
+!             mod_defect.f90 for why (it tests whether/which-direction
+!             low-adhesion cells get preferentially extruded by T4,
+!             following directly from the apical-vs-basal competition
+!             analysis in Section "T4" of docs/model_and_code_guide.tex).
+!             Purely additive: with defect_enable=.false. every cell's
+!             own lambda_own is just Lambda_line and nothing changes.
+! defect_fraction : fraction (0,1] of the initial alive-cell population
+!             to seed as defect cells, chosen uniformly at random.
+! Lambda_line_defect : the lateral-tension modulus given to each seeded
+!             defect cell instead of Lambda_line (a shared edge's real
+!             tension becomes the AVERAGE of its two owning cells' own
+!             values, so a defect cell's edges are softer only in
+!             proportion to how many of its neighbours are also defect).
+!
 ! random_seed            : seed for the Langevin noise / any stochastic choices
 ! capacity_growth_factor : the cell/vertex arrays are pre-allocated at
 !                          this factor times the initial cell/vertex
@@ -92,7 +111,7 @@
   K_V                   = 1.0d0
   K_A                   = 1.0d0
   K_P                   = 0.02d0
-  Lambda_line           = 1.0d0
+  Lambda_line           = 0.3d0
   K_A_bas               = 1.0d0
   K_P_bas               = 0.1d0
   V0_scale              = 1.0d0
@@ -100,7 +119,7 @@
   A0_bas_scale          = 1.0d0
 
   zeta_friction         = 1.0d0
-  kBT                   = 0.1d0
+  kBT                   = 0.0d0
   dt                    = 1.0d-3
   n_steps               = 100000
   it_dumps              = 100
@@ -113,8 +132,12 @@
   V_division_threshold  = 1.4d0
 
   T4_enable             = .true.
-  V_extrusion_threshold = 0.83d0
-  T4_direction_deadband = 0.05d0
+  V_extrusion_threshold = 0.92d0
+  T4_direction_deadband = 0.0d0
+
+  defect_enable         = .false.
+  defect_fraction       = 0.1d0
+  Lambda_line_defect    = 0.1d0
 
   random_seed            = 12345
   capacity_growth_factor = 3.0d0

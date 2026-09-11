@@ -8,6 +8,9 @@ module mod_force
   !     + Sum_cells  (K_A_bas/2)(Abas_i - A0_bas_i)^2     basal-area elasticity
   !     + Sum_cells  (K_P_bas/2) Pbas_i^2                 basal perimeter contractility
   !     + Sum_edges  Lambda_line * S_lateral(edge)        lateral (cell-cell) interfacial tension
+  !       (or, with mod_defect.f90's optional per-cell override active, each
+  !       cell uses its OWN cells(ic)%lambda_own for its half-share of every
+  !       lateral face it owns -- see that module and the note below)
   !
   ! Each cell is the polyhedron with apical polygon r_api(vlist), basal
   ! polygon r_bas(vlist) and lateral quadrilateral faces joining them.
@@ -36,10 +39,15 @@ module mod_force
   !
   ! Each lateral interface is shared by exactly two cells, both of
   ! which loop over "their own" copy of that edge; to avoid double
-  ! counting, every cell contributes Lambda_line/2 * S_edge to the
-  ! energy (and the corresponding half-weighted gradient) so that the
-  ! sum over both owning cells reproduces Lambda_line * S_edge exactly
-  ! once.
+  ! counting, every cell contributes lambda_own/2 * S_edge to the
+  ! energy (and the corresponding half-weighted gradient), where
+  ! lambda_own is that CELL's own lateral-tension modulus
+  ! (cells(ic)%lambda_own, mod_data.f90) -- equal to Lambda_line for
+  ! every cell unless mod_defect.f90 has lowered it for a seeded subset.
+  ! So a shared edge's real total tension is (lambda_own_i +
+  ! lambda_own_j)/2 * S_edge, the average of its two owning cells' own
+  ! values; with no defects seeded this is just Lambda_line * S_edge
+  ! exactly as before.
   use mod_kinds
   use mod_parameters
   use mod_data
@@ -184,7 +192,7 @@ contains
                        + 0.5_dp * K_P * Papi * Papi &
                        + 0.5_dp * K_A_bas * dAbas * dAbas &
                        + 0.5_dp * K_P_bas * Pbas * Pbas &
-                       + 0.5_dp * Lambda_line * Slat_total
+                       + 0.5_dp * cells(ic)%lambda_own * Slat_total
       vol_total  = vol_total  + V
       area_total = area_total + Aapi
       cells(ic)%V_last     = V
@@ -196,11 +204,11 @@ contains
         f_api(:, gvid) = f_api(:, gvid) - ( K_V * dV * gV_A(:, k) &
                                           + K_A * dA * gArea_A(:, k) &
                                           + K_P * Papi * gPer_A(:, k) &
-                                          + 0.5_dp * Lambda_line * gLat_A(:, k) )
+                                          + 0.5_dp * cells(ic)%lambda_own * gLat_A(:, k) )
         f_bas(:, gvid) = f_bas(:, gvid) - ( K_V * dV * gV_B(:, k) &
                                           + K_A_bas * dAbas * gArea_B(:, k) &
                                           + K_P_bas * Pbas * gPer_B(:, k) &
-                                          + 0.5_dp * Lambda_line * gLat_B(:, k) )
+                                          + 0.5_dp * cells(ic)%lambda_own * gLat_B(:, k) )
       end do
     end do
   end subroutine compute_forces
