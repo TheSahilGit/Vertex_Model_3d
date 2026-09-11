@@ -149,6 +149,7 @@
 
   defect_enable         = .false.
   defect_fraction       = 0.1d0
+  Lambda_line_defect    = 1.0d0
   defect_A0_bas_scale   = 0.1d0
 
   random_seed            = 12345
