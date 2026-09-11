@@ -52,6 +52,12 @@ ref_location = 1;            % which cell/location the latitude and
                               % two fixed cutting planes reused for every
                               % later frame (see ring_planes_for_location.m).
 
+latitude_view  = [-124.6069609926535,  33.152764627008267];  % [az el],
+longitude_view = [  -9.195907331898637, 10.77613463554659];  % found by hand
+                              % (rotate the figure, then read back with
+                              % [az,el]=view(gca)) -- used exactly as
+                              % given instead of the automatic tilt.
+
 % Which saved snapshots go into the video(s), given directly as an
 % array of SAVED iteration numbers (the it_dumps cadence) -- not raw
 % simulation steps, not a plain index into the file list. A scalar
@@ -110,10 +116,10 @@ if flag_latitude || flag_longitude
 
     if flag_latitude
         outfile = fullfile(video_dir, sprintf('latitude_%s.avi', colorby));
-        make_cross_section_video(video_files, latPlane, outfile, video_fps, colorby, 'Latitude ring');
+        make_cross_section_video(video_files, latPlane, outfile, video_fps, colorby, 'Latitude ring', latitude_view);
     end
     if flag_longitude
         outfile = fullfile(video_dir, sprintf('longitude_%s.avi', colorby));
-        make_cross_section_video(video_files, lonPlane, outfile, video_fps, colorby, 'Longitude ring');
+        make_cross_section_video(video_files, lonPlane, outfile, video_fps, colorby, 'Longitude ring', longitude_view);
     end
 end

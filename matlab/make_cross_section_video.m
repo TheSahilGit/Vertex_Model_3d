@@ -1,4 +1,4 @@
-function make_cross_section_video(files, plane, outfile, fps, colorby, titleLabel)
+function make_cross_section_video(files, plane, outfile, fps, colorby, titleLabel, viewAngle)
 % MAKE_CROSS_SECTION_VIDEO  Step through every snapshot in FILES (a
 % cell array of filenames, e.g. from list_snapshots.m/
 % select_snapshots.m), rendering the cross-section (ring) view
@@ -26,6 +26,11 @@ function make_cross_section_video(files, plane, outfile, fps, colorby, titleLabe
 % "t = ..." title on every frame, so a saved video says which ring it
 % is (e.g. 'Latitude ring' / 'Longitude ring').
 %
+% VIEWANGLE (optional) is an explicit [az el] passed straight through
+% to plot_cross_section.m's 'View' option -- e.g. one found by hand
+% (rotate the figure, then read it back with [az,el]=view(gca)) --
+% used for every frame instead of the default automatic tilt.
+%
 % Uses the 'Motion JPEG AVI' VideoWriter profile (available on every
 % platform, unlike 'MPEG-4' which Linux MATLAB does not support).
 %
@@ -42,6 +47,9 @@ if nargin < 5 || isempty(colorby)
 end
 if nargin < 6
     titleLabel = '';
+end
+if nargin < 7
+    viewAngle = [];
 end
 
 FRAME_W = 1000;
@@ -72,7 +80,8 @@ open(v);
 
 for k = 1:numel(Sall)
     plot_cross_section(Sall{k}, plane, 'Figure', fig, ...
-                        'ColorBy', colorby, 'CLim', [cmin cmax], 'Title', titleLabel);
+                        'ColorBy', colorby, 'CLim', [cmin cmax], 'Title', titleLabel, ...
+                        'View', viewAngle);
     % Re-pin only the SIZE every frame (defensively) -- never the
     % on-screen location, which is left free for you to drag the
     % window around (e.g. to another monitor) while it renders.

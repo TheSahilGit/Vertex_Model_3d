@@ -37,6 +37,11 @@ function fig = plot_cross_section(S, plane, varargin)
 %   plot_cross_section(S, latPlane, 'Title', 'Latitude ring')
 %       prepend a label above the usual "t = ..." title, so a saved
 %       frame/video says which ring it is.
+%   plot_cross_section(S, latPlane, 'View', [az el])
+%       use this exact (az,el) instead of the default tilt computed
+%       from the plane's own normal -- e.g. a view you found by hand
+%       (rotate the figure, then read it back with [az,el]=view(gca))
+%       and want reproduced exactly on every frame of a video.
 %
 % S is a struct from read_vertex_snapshot.m.
 
@@ -72,12 +77,14 @@ p.addParameter('Axes', []);
 p.addParameter('ColorBy', 'volume');
 p.addParameter('CLim', []);
 p.addParameter('Title', '');
+p.addParameter('View', []);
 p.parse(rest{:});
 fig_in   = p.Results.Figure;
 ax_in    = p.Results.Axes;
 colorby  = p.Results.ColorBy;
 clim_in  = p.Results.CLim;
 title_label = p.Results.Title;
+view_in  = p.Results.View;
 
 FONT_SIZE  = 26;
 TITLE_SIZE = 30;
@@ -235,23 +242,30 @@ cb.FontSize = FONT_SIZE;
 R = S.R_apical * 1.05;
 xlim(ax, [-R R]); ylim(ax, [-R R]); zlim(ax, [-R R]);
 
-% Roughly face-on to the cutting plane, but TILTED a little (not
-% dead-on along the normal) -- a pure face-on view flattens the ring
-% into what reads as a 2-D strip; a small tilt, the same idea as
-% plot_tissue_3d.m's own view(ax,35,20), keeps it recognisably a 3-D
-% band of polyhedra (you can see the lateral walls' own depth) while
-% still showing the ring as a clean loop rather than a foreshortened
-% oblique mess.
-%
-% planeNormal -> (az0,el0) uses MATLAB's own view(az,el) convention
-% (camera direction = [sind(az)*cosd(el), -cosd(az)*cosd(el), sind(el)],
-% checked directly against view(ax,90,0)/view(ax,0,90) etc.), then a
-% fixed offset is added on top -- fixed once per call, same for every
-% frame of a video.
-el0 = asind(planeNormal(3));
-az0 = atan2d(planeNormal(1), -planeNormal(2));
-TILT_AZ = 25; TILT_EL = 18;
-view(ax, az0 + TILT_AZ, el0 + TILT_EL);
+if ~isempty(view_in)
+    % An explicit (az,el) override -- e.g. one found by hand (rotate
+    % the figure, then read it back with [az,el]=view(gca)) -- used
+    % exactly as given, same for every frame of a video.
+    view(ax, view_in(1), view_in(2));
+else
+    % Roughly face-on to the cutting plane, but TILTED a little (not
+    % dead-on along the normal) -- a pure face-on view flattens the
+    % ring into what reads as a 2-D strip; a small tilt, the same idea
+    % as plot_tissue_3d.m's own view(ax,35,20), keeps it recognisably a
+    % 3-D band of polyhedra (you can see the lateral walls' own depth)
+    % while still showing the ring as a clean loop rather than a
+    % foreshortened oblique mess.
+    %
+    % planeNormal -> (az0,el0) uses MATLAB's own view(az,el) convention
+    % (camera direction = [sind(az)*cosd(el), -cosd(az)*cosd(el),
+    % sind(el)], checked directly against view(ax,90,0)/view(ax,0,90)
+    % etc.), then a fixed offset is added on top -- fixed once per
+    % call, same for every frame of a video.
+    el0 = asind(planeNormal(3));
+    az0 = atan2d(planeNormal(1), -planeNormal(2));
+    TILT_AZ = 25; TILT_EL = 18;
+    view(ax, az0 + TILT_AZ, el0 + TILT_EL);
+end
 
 camlight(ax, 'headlight'); lighting(ax, 'gouraud'); material(ax, 'dull')
 axis(ax, 'vis3d');  % freeze the view (zoom + box shape) AFTER limits/view
