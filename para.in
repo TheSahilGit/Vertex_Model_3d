@@ -131,7 +131,7 @@
   A0_bas_scale          = 1.0d0
 
   zeta_friction         = 1.0d0
-  kBT                   = 0.0d0
+  kBT                   = 0.1d0
   dt                    = 1.0d-3
   n_steps               = 100000
   it_dumps              = 100
