@@ -28,6 +28,8 @@ module mod_parameters
   logical     :: defect_enable
   real(dp)    :: defect_fraction
   real(dp)    :: Lambda_line_defect
+  real(dp)    :: defect_A0_bas_scale
+  real(dp)    :: defect_boundary_tension
 
   integer(i4) :: random_seed
   real(dp)    :: capacity_growth_factor
@@ -45,11 +47,24 @@ contains
          division_enable, it_division_check, V_division_threshold, &
          T4_enable, V_extrusion_threshold, T4_direction_deadband, &
          defect_enable, defect_fraction, Lambda_line_defect, &
+         defect_A0_bas_scale, defect_boundary_tension, &
          random_seed, capacity_growth_factor
 
     ! default for the one optional/newer key, in case an older
     ! para.in without it is supplied
     capacity_growth_factor = 3.0_dp
+
+    ! Both new defect "levers" below default to a no-op value directly
+    ! (no sentinel needed -- 1.0 IS "unchanged basal target", 0.0 IS "no
+    ! boundary bonus"), so defect_enable can be used with just
+    ! Lambda_line_defect (as before), just one of these two, or any mix:
+    !   defect_A0_bas_scale    : scales a defect cell's OWN A0_bas on top
+    !                            of the usual A0_bas_scale (mod_defect.f90)
+    !   defect_boundary_tension: extra lateral tension added ONLY on
+    !                            edges between a defect cell and a
+    !                            non-defect neighbour (Force.f90)
+    defect_A0_bas_scale     = 1.0_dp
+    defect_boundary_tension = 0.0_dp
 
     ! Basal-face moduli/target-scale default to a NEGATIVE sentinel
     ! here; if para.in does not set them explicitly, they are fixed up
@@ -65,6 +80,12 @@ contains
     ! V_division_threshold -- there is no sensible silent default for
     ! "should this feature be on" or "how compressed is crowded").
     T4_direction_deadband = -1.0_dp
+
+    ! Lambda_line_defect is now optional too (sentinel default: equal to
+    ! Lambda_line, i.e. no adhesion difference) -- so defect_enable can
+    ! be used purely via defect_A0_bas_scale and/or
+    ! defect_boundary_tension without also having to touch adhesion.
+    Lambda_line_defect = -1.0_dp
 
     open(newunit=iun, file=trim(fname), status='old', action='read', iostat=ios)
     if (ios /= 0) then
@@ -83,6 +104,7 @@ contains
     if (K_P_bas      < 0.0_dp) K_P_bas      = K_P
     if (A0_bas_scale < 0.0_dp) A0_bas_scale = A0_scale
     if (T4_direction_deadband < 0.0_dp) T4_direction_deadband = 0.05_dp
+    if (Lambda_line_defect < 0.0_dp) Lambda_line_defect = Lambda_line
 
     ! ---- sanity checks on the parameters themselves ----
     if (N_subdivision < 0 .or. N_subdivision > 6) then
@@ -107,6 +129,10 @@ contains
     end if
     if (defect_enable .and. (defect_fraction <= 0.0_dp .or. defect_fraction > 1.0_dp)) then
       write(*,*) 'ERROR: defect_fraction must be in (0,1] when defect_enable is true. Got:', defect_fraction
+      stop 1
+    end if
+    if (defect_enable .and. defect_A0_bas_scale <= 0.0_dp) then
+      write(*,*) 'ERROR: defect_A0_bas_scale must be > 0. Got:', defect_A0_bas_scale
       stop 1
     end if
 

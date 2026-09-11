@@ -48,10 +48,24 @@ module mod_force
   ! lambda_own_j)/2 * S_edge, the average of its two owning cells' own
   ! values; with no defects seeded this is just Lambda_line * S_edge
   ! exactly as before.
+  !
+  ! defect_boundary_tension (mod_defect.f90, optional, off/0 by default)
+  ! adds a further per-EDGE bonus, ONLY on edges connecting a defect
+  ! cell to a non-defect neighbour (a heterotypic interface): each of
+  ! the two owning cells adds defect_boundary_tension/2 to its own
+  ! share of THAT edge specifically (same split convention as
+  ! lambda_own), on top of its own lambda_own/2. This needs to know the
+  ! neighbour across each edge; edge_cells (mod_topology.f90) would do
+  ! that but costs O(n_cell) PER EDGE, which would make compute_forces
+  ! (called every step) effectively O(n_cell^2) -- so when this feature
+  ! is active, a cheap vertex-incidence cache (mod_topology.f90's
+  ! build_vertex_incidence/neighbor_across_edge) is built once per call
+  ! instead, keeping the whole routine at its usual O(n_cell*MAX_SIDES).
   use mod_kinds
   use mod_parameters
   use mod_data
   use mod_geometry
+  use mod_topology, only: build_vertex_incidence, neighbor_across_edge
   implicit none
 
 contains
@@ -60,25 +74,33 @@ contains
     real(dp), intent(out) :: energy
     real(dp), intent(out) :: vol_total, area_total
 
-    integer(i4) :: ic, n, k, kp, j, gvid
+    integer(i4) :: ic, n, k, kp, j, gvid, jc
     real(dp) :: Aarr(3, MAX_SIDES), Barr(3, MAX_SIDES)
     real(dp) :: ca(3), cb(3)
     real(dp) :: gV_A(3, MAX_SIDES), gV_B(3, MAX_SIDES)
     real(dp) :: gArea_A(3, MAX_SIDES), gArea_B(3, MAX_SIDES)
     real(dp) :: gPer_A(3, MAX_SIDES), gPer_B(3, MAX_SIDES)
     real(dp) :: gLat_A(3, MAX_SIDES), gLat_B(3, MAX_SIDES)
-    real(dp) :: V, Aapi, Papi, Abas, Pbas, Slat_total
+    real(dp) :: V, Aapi, Papi, Abas, Pbas, Slat_energy
     real(dp) :: vtri, gp(3), gq(3), gr(3)
     real(dp) :: vtri2, gp2(3), gq2(3), gr2(3)
     real(dp) :: atri
     real(dp) :: d(3), edge_len
-    real(dp) :: dV, dA, dAbas
+    real(dp) :: dV, dA, dAbas, w_lat
+    logical :: use_boundary_tension
+    integer(i4), allocatable :: vic(:,:), vic_count(:)
 
     f_api = 0.0_dp
     f_bas = 0.0_dp
     energy = 0.0_dp
     vol_total = 0.0_dp
     area_total = 0.0_dp
+
+    use_boundary_tension = defect_enable .and. (abs(defect_boundary_tension) > 0.0_dp)
+    if (use_boundary_tension) then
+      allocate(vic(3, n_vert_cap), vic_count(n_vert_cap))
+      call build_vertex_incidence(vic, vic_count)
+    end if
 
     do ic = 1, n_cell
       if (.not. cells(ic)%alive) cycle
@@ -96,7 +118,7 @@ contains
       gPer_A(:, 1:n) = 0.0_dp; gPer_B(:, 1:n) = 0.0_dp
       gLat_A(:, 1:n) = 0.0_dp; gLat_B(:, 1:n) = 0.0_dp
       V = 0.0_dp; Aapi = 0.0_dp; Papi = 0.0_dp; Abas = 0.0_dp; Pbas = 0.0_dp
-      Slat_total = 0.0_dp
+      Slat_energy = 0.0_dp
 
       ! ---- apical cap: fan from ca, volume via tetra(origin,ca,Ak,Akp) ----
       do k = 1, n
@@ -176,11 +198,23 @@ contains
 
         call tri_area_grad(Aarr(:, k), Barr(:, k), Barr(:, kp), vtri, gp, gq, gr)
         call tri_area_grad(Aarr(:, k), Barr(:, kp), Aarr(:, kp), vtri2, gp2, gq2, gr2)
-        Slat_total = Slat_total + vtri + vtri2
-        gLat_A(:, k)  = gLat_A(:, k)  + gp + gp2
-        gLat_B(:, k)  = gLat_B(:, k)  + gq
-        gLat_B(:, kp) = gLat_B(:, kp) + gr + gq2
-        gLat_A(:, kp) = gLat_A(:, kp) + gr2
+
+        ! this face's own effective tension: plain lambda_own, plus a
+        ! boundary bonus if this specific edge is a defect/non-defect
+        ! heterotypic interface (mod_defect.f90's lever (3))
+        w_lat = cells(ic)%lambda_own
+        if (use_boundary_tension) then
+          jc = neighbor_across_edge(ic, cells(ic)%vlist(k), cells(ic)%vlist(kp), vic, vic_count)
+          if (jc > 0) then
+            if (cells(ic)%is_defect .neqv. cells(jc)%is_defect) w_lat = w_lat + defect_boundary_tension
+          end if
+        end if
+
+        Slat_energy = Slat_energy + w_lat * (vtri + vtri2)
+        gLat_A(:, k)  = gLat_A(:, k)  + w_lat * (gp + gp2)
+        gLat_B(:, k)  = gLat_B(:, k)  + w_lat * gq
+        gLat_B(:, kp) = gLat_B(:, kp) + w_lat * (gr + gq2)
+        gLat_A(:, kp) = gLat_A(:, kp) + w_lat * gr2
       end do
 
       dV    = V    - cells(ic)%V0
@@ -192,7 +226,7 @@ contains
                        + 0.5_dp * K_P * Papi * Papi &
                        + 0.5_dp * K_A_bas * dAbas * dAbas &
                        + 0.5_dp * K_P_bas * Pbas * Pbas &
-                       + 0.5_dp * cells(ic)%lambda_own * Slat_total
+                       + 0.5_dp * Slat_energy
       vol_total  = vol_total  + V
       area_total = area_total + Aapi
       cells(ic)%V_last     = V
@@ -204,13 +238,15 @@ contains
         f_api(:, gvid) = f_api(:, gvid) - ( K_V * dV * gV_A(:, k) &
                                           + K_A * dA * gArea_A(:, k) &
                                           + K_P * Papi * gPer_A(:, k) &
-                                          + 0.5_dp * cells(ic)%lambda_own * gLat_A(:, k) )
+                                          + 0.5_dp * gLat_A(:, k) )
         f_bas(:, gvid) = f_bas(:, gvid) - ( K_V * dV * gV_B(:, k) &
                                           + K_A_bas * dAbas * gArea_B(:, k) &
                                           + K_P_bas * Pbas * gPer_B(:, k) &
-                                          + 0.5_dp * cells(ic)%lambda_own * gLat_B(:, k) )
+                                          + 0.5_dp * gLat_B(:, k) )
       end do
     end do
+
+    if (use_boundary_tension) deallocate(vic, vic_count)
   end subroutine compute_forces
 
   !---------------------------------------------------------------------

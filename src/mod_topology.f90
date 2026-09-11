@@ -79,6 +79,56 @@ contains
   end subroutine vertex_incidence
 
   !------------------------------------------------------------------
+  ! Cheap O(n_cell)-TOTAL (not per-edge) "which alive cells touch each
+  ! vertex" cache, built once and reused for many neighbour_across_edge
+  ! lookups -- used by Force.f90's defect_boundary_tension feature.
+  ! Calling edge_cells (O(n_cell) EACH) once per lateral face would make
+  ! compute_forces (called every step) effectively O(n_cell^2); building
+  ! this cache once per compute_forces call instead keeps it the same
+  ! O(n_cell*MAX_SIDES) order as the rest of that routine.
+  ! vic(1:3, v) holds up to 3 owning cell ids (0-padded); a vertex
+  ! touched by more than 3 alive cells (should not happen on this
+  ! trivalent mesh) simply has the extras silently dropped.
+  subroutine build_vertex_incidence(vic, vic_count)
+    integer(i4), intent(out) :: vic(:,:)
+    integer(i4), intent(out) :: vic_count(:)
+    integer(i4) :: ic, k, v
+
+    vic = 0
+    vic_count = 0
+    do ic = 1, n_cell
+      if (.not. cells(ic)%alive) cycle
+      do k = 1, cells(ic)%n
+        v = cells(ic)%vlist(k)
+        vic_count(v) = vic_count(v) + 1
+        if (vic_count(v) <= size(vic, 1)) vic(vic_count(v), v) = ic
+      end do
+    end do
+  end subroutine build_vertex_incidence
+
+  !------------------------------------------------------------------
+  ! Given icell's own edge (v1,v2) and the cache above, return the
+  ! OTHER cell owning that edge (0 if not found -- should not happen on
+  ! a closed manifold mesh).
+  integer(i4) function neighbor_across_edge(icell, v1, v2, vic, vic_count) result(jc)
+    integer(i4), intent(in) :: icell, v1, v2
+    integer(i4), intent(in) :: vic(:,:), vic_count(:)
+    integer(i4) :: a, b, cand
+
+    jc = 0
+    do a = 1, min(vic_count(v1), size(vic, 1))
+      cand = vic(a, v1)
+      if (cand == icell .or. cand == 0) cycle
+      do b = 1, min(vic_count(v2), size(vic, 1))
+        if (vic(b, v2) == cand) then
+          jc = cand
+          return
+        end if
+      end do
+    end do
+  end function neighbor_across_edge
+
+  !------------------------------------------------------------------
   subroutine ring_remove(icell, vid, ok)
     integer(i4), intent(in)  :: icell, vid
     logical,     intent(out) :: ok
