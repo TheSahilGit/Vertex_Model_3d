@@ -17,7 +17,7 @@ function [latPlane, lonPlane, refPoint] = ring_planes_for_location(S, ref)
 %   ref = [x y z]             % an explicit point in space instead
 %
 % Both REF forms are resolved ONCE (typically from a video's first
-% frame -- see make_combined_video.m) into a single fixed reference
+% frame -- see main_movie.m) into a single fixed reference
 % point; the two planes returned are meant to be reused unchanged for
 % every frame of a video, exactly like cut_axis/cut_value were fixed
 % for a whole video before this. If the tissue moves or a tracked

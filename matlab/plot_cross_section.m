@@ -32,8 +32,11 @@ function fig = plot_cross_section(S, plane, varargin)
 %       size and a constant colour scale across a whole video.
 %   plot_cross_section(S, latPlane, 'Axes', ax, 'CLim', [cmin cmax])
 %       draw into an existing AXES (e.g. one subplot of a bigger
-%       figure) instead of owning a whole figure -- used by
-%       make_combined_video.m. Takes precedence over 'Figure'.
+%       figure) instead of owning a whole figure. Takes precedence
+%       over 'Figure'.
+%   plot_cross_section(S, latPlane, 'Title', 'Latitude ring')
+%       prepend a label above the usual "t = ..." title, so a saved
+%       frame/video says which ring it is.
 %
 % S is a struct from read_vertex_snapshot.m.
 
@@ -68,11 +71,13 @@ p.addParameter('Figure', []);
 p.addParameter('Axes', []);
 p.addParameter('ColorBy', 'volume');
 p.addParameter('CLim', []);
+p.addParameter('Title', '');
 p.parse(rest{:});
 fig_in   = p.Results.Figure;
 ax_in    = p.Results.Axes;
 colorby  = p.Results.ColorBy;
 clim_in  = p.Results.CLim;
+title_label = p.Results.Title;
 
 FONT_SIZE  = 26;
 TITLE_SIZE = 30;
@@ -197,6 +202,17 @@ plot3(ax, edge_x, edge_y, edge_z, 'Color', [0.05 0.05 0.05], 'LineWidth', 1.2);
 
 axis(ax, 'equal'); axis(ax, 'off');
 
+% A 2-line title (panel label + "t = ...") needs headroom above the
+% plot that MATLAB's default axes position doesn't leave -- checked
+% directly, it clips the top line otherwise. Only touch this when it's
+% actually needed (a title_label was given) and only when this
+% function owns the whole figure (never override a caller-supplied
+% Axes' own layout, e.g. one subplot of a bigger figure).
+if isempty(ax_in) && ~isempty(title_label)
+    ax.Units = 'normalized';
+    ax.Position = [0.02 0.04 0.78 0.80];
+end
+
 colormap(ax, parula)
 if isempty(clim_in)
     if max(cval_alive) > min(cval_alive)
@@ -219,51 +235,36 @@ cb.FontSize = FONT_SIZE;
 R = S.R_apical * 1.05;
 xlim(ax, [-R R]); ylim(ax, [-R R]); zlim(ax, [-R R]);
 
-% Face-on to the cutting plane, with an on-screen framing that stays
-% CONSISTENT regardless of which direction planeNormal happens to
-% point. view(ax, v) alone would auto-fit the camera distance/angle to
-% whatever the fixed [-R,R]^3 axis box's SILHOUETTE looks like from
-% that specific direction -- and that silhouette is wider when viewed
-% along an oblique in-plane direction (e.g. a longitude ring at an
-% arbitrary azimuthal angle, up to R*sqrt(2) across) than dead-on
-% along a coordinate axis (e.g. the latitude ring, looking straight
-% down z, exactly R across) -- so two rings of the SAME physical
-% radius R would render at visibly different on-screen sizes purely
-% because of their different cut orientation. Setting camera position/
-% target/view-angle explicitly (a fixed distance and view angle
-% computed from R alone, independent of direction) removes that
-% dependence: every ring, whatever its cutting plane, fills the same
-% fraction of its panel.
-camdist = 4 * S.R_apical;
-camtarget(ax, [0 0 0]);
-campos(ax, planeNormal' * camdist);
-upvec = [0 0 1];
-if abs(dot(upvec, planeNormal)) > 0.9
-    upvec = [0 1 0];   % avoid a degenerate/near-parallel up vector when
-                        % looking nearly straight down the polar axis
-end
-camup(ax, upvec);
-camva(ax, 2 * atand(R / camdist));
+% Roughly face-on to the cutting plane, but TILTED a little (not
+% dead-on along the normal) -- a pure face-on view flattens the ring
+% into what reads as a 2-D strip; a small tilt, the same idea as
+% plot_tissue_3d.m's own view(ax,35,20), keeps it recognisably a 3-D
+% band of polyhedra (you can see the lateral walls' own depth) while
+% still showing the ring as a clean loop rather than a foreshortened
+% oblique mess.
+%
+% planeNormal -> (az0,el0) uses MATLAB's own view(az,el) convention
+% (camera direction = [sind(az)*cosd(el), -cosd(az)*cosd(el), sind(el)],
+% checked directly against view(ax,90,0)/view(ax,0,90) etc.), then a
+% fixed offset is added on top -- fixed once per call, same for every
+% frame of a video.
+el0 = asind(planeNormal(3));
+az0 = atan2d(planeNormal(1), -planeNormal(2));
+TILT_AZ = 25; TILT_EL = 18;
+view(ax, az0 + TILT_AZ, el0 + TILT_EL);
 
 camlight(ax, 'headlight'); lighting(ax, 'gouraud'); material(ax, 'dull')
-ax.CameraPositionMode  = 'manual';
-ax.CameraTargetMode    = 'manual';
-ax.CameraUpVectorMode  = 'manual';
-% 'axis vis3d' freezes CameraViewAngle (redundant with the manual Mode
-% assignments above, which already pin campos/camtarget/camup/camva at
-% the exact values just computed -- vis3d preserves them, verified
-% directly, rather than recomputing anything) AND, unlike setting
-% CameraViewAngleMode by hand alone, ALSO freezes PlotBoxAspectRatio.
-% That second one is the part that actually matters here: left on
-% 'auto', MATLAB continuously re-fits the plot box's shape to the axes
-% region for whatever the CURRENT view direction is -- invisible for a
-% single fixed frame, but exactly what shows up as the whole ring
-% appearing to zoom in and out while a user interactively rotates it
-% (e.g. in the figure make_combined_video.m leaves open on its last
-% frame).
-axis(ax, 'vis3d');
+axis(ax, 'vis3d');  % freeze the view (zoom + box shape) AFTER limits/view
+                     % are final, so it doesn't drift on later redraws
 ax.FontSize = FONT_SIZE;
 ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured frames
 
-title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
+if isempty(title_label)
+    title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
+else
+    % A 2-line title at the plain single-line TITLE_SIZE overflows the
+    % top of the figure (checked directly) -- a smaller size for the
+    % 2-line case keeps both lines actually visible.
+    title(ax, {title_label, sprintf('t = %.4g', S.time)}, 'FontSize', round(TITLE_SIZE*0.65));
+end
 end

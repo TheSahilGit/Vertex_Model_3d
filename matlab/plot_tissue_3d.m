@@ -17,10 +17,12 @@ function fig = plot_tissue_3d(S, colorby, varargin)
 %
 %   plot_tissue_3d(..., 'Axes', ax, 'CLim', [cmin cmax])
 %       Draw into an existing AXES (cleared first, e.g. one subplot of
-%       a larger figure) instead of owning a whole figure -- used by
-%       make_combined_video.m to place this view alongside the
-%       cross-section ring views in one figure. Takes precedence over
-%       'Figure' if both are given.
+%       a larger figure) instead of owning a whole figure. Takes
+%       precedence over 'Figure' if both are given.
+%
+%   plot_tissue_3d(..., 'Title', 'Whole tissue')
+%       prepend a label above the usual "t = ..." title, so a saved
+%       frame/video says which view it is.
 %
 % S is a struct from read_vertex_snapshot.m.
 
@@ -30,11 +32,13 @@ end
 p = inputParser;
 p.addParameter('Figure', []);
 p.addParameter('Axes', []);
+p.addParameter('Title', '');
 p.addParameter('CLim', []);
 p.parse(varargin{:});
 fig_in  = p.Results.Figure;
 ax_in   = p.Results.Axes;
 clim_in = p.Results.CLim;
+title_label = p.Results.Title;
 
 FONT_SIZE   = 26;  % ~2.5x the MATLAB default (10), per user request
 TITLE_SIZE  = 30;
@@ -107,7 +111,14 @@ ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured 
 % the caller's own subplot layout alone instead.
 if isempty(ax_in)
     ax.Units = 'normalized';
-    ax.Position = [0.03 0.06 0.72 0.88];
+    if isempty(title_label)
+        ax.Position = [0.03 0.06 0.72 0.88];
+    else
+        % A 2-line title (panel label + "t = ...") needs more headroom
+        % than the single-line case above leaves -- checked directly,
+        % it clips the top line otherwise.
+        ax.Position = [0.03 0.06 0.72 0.80];
+    end
     cb.Units = 'normalized';
     cb.Position = [0.80 0.12 0.045 0.76];
 end
@@ -130,10 +141,17 @@ end
 % plot box's shape to the axes region for whatever the CURRENT view
 % direction happens to be -- harmless for a fixed, non-interactive
 % video frame, but the moment a user drags to rotate the figure
-% interactively (e.g. the one make_combined_video.m leaves open on its
+% interactively (e.g. the figure make_tissue_video.m leaves open on its
 % last frame), that continuous re-fit is exactly what shows up as the
 % whole scene appearing to zoom in and out while it rotates.
 axis(ax, 'vis3d');
 
-title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
+if isempty(title_label)
+    title(ax, sprintf('t = %.4g', S.time), 'FontSize', TITLE_SIZE);
+else
+    % A 2-line title at the plain single-line TITLE_SIZE overflows the
+    % top of the figure (checked directly) -- a smaller size for the
+    % 2-line case keeps both lines actually visible.
+    title(ax, {title_label, sprintf('t = %.4g', S.time)}, 'FontSize', round(TITLE_SIZE*0.65));
+end
 end

@@ -1,4 +1,4 @@
-function make_cross_section_video(files, cutaxis, cutvalue, outfile, fps, colorby)
+function make_cross_section_video(files, plane, outfile, fps, colorby, titleLabel)
 % MAKE_CROSS_SECTION_VIDEO  Step through every snapshot in FILES (a
 % cell array of filenames, e.g. from list_snapshots.m/
 % select_snapshots.m), rendering the cross-section (ring) view
@@ -8,15 +8,23 @@ function make_cross_section_video(files, cutaxis, cutvalue, outfile, fps, colorb
 % left open on the last frame when done so you can look at it -- close
 % it yourself when you're done, or before calling this again).
 %
-% CUTAXIS/CUTVALUE are fixed once, here, for the whole video -- not
-% re-chosen per frame -- so every frame is a cut through the same
-% plane as the tissue evolves.
+% PLANE identifies the cutting plane -- see plot_cross_section.m:
+%   'x' | 'y' | 'z'          cut through the origin along that axis
+%   a {normal, point} struct  an arbitrary plane (e.g. from
+%                             ring_planes_for_location.m)
+% Fixed once here for the whole video -- not re-chosen per frame -- so
+% every frame is a cut through the same plane as the tissue evolves.
 %
 % FILES may be a single filename (in a 1x1 cell array): the same code
 % path runs, writing a 1-frame video -- which is, in effect, just that
 % one plot, saved to OUTFILE like any other.
 %
-%   make_cross_section_video(files, 'y', 0.0, 'videos/cross_y.avi', 8, 'volume')
+%   make_cross_section_video(files, 'y', 'videos/cross_y.avi', 8, 'volume')
+%   make_cross_section_video(files, latPlane, 'videos/lat.avi', 8, 'nsides', 'Latitude ring')
+%
+% TITLELABEL (optional), if given, is prepended above the usual
+% "t = ..." title on every frame, so a saved video says which ring it
+% is (e.g. 'Latitude ring' / 'Longitude ring').
 %
 % Uses the 'Motion JPEG AVI' VideoWriter profile (available on every
 % platform, unlike 'MPEG-4' which Linux MATLAB does not support).
@@ -26,18 +34,20 @@ function make_cross_section_video(files, cutaxis, cutvalue, outfile, fps, colorb
 % MATLAB's own renderer and grab a frame before a layout change has
 % actually been composited).
 
-if nargin < 5 || isempty(fps)
+if nargin < 4 || isempty(fps)
     fps = 8;
 end
-if nargin < 6 || isempty(colorby)
+if nargin < 5 || isempty(colorby)
     colorby = 'volume';
+end
+if nargin < 6
+    titleLabel = '';
 end
 
 FRAME_W = 1000;
 FRAME_H = 900;
 
-fprintf('make_cross_section_video [%s=%.3g, %s]: reading %d snapshots...\n', ...
-        cutaxis, cutvalue, colorby, numel(files));
+fprintf('make_cross_section_video [%s]: reading %d snapshots...\n', colorby, numel(files));
 Sall = cell(numel(files), 1);
 cmin = inf; cmax = -inf;
 for k = 1:numel(files)
@@ -61,8 +71,8 @@ v.Quality = 90;
 open(v);
 
 for k = 1:numel(Sall)
-    plot_cross_section(Sall{k}, cutaxis, cutvalue, 'Figure', fig, ...
-                        'ColorBy', colorby, 'CLim', [cmin cmax]);
+    plot_cross_section(Sall{k}, plane, 'Figure', fig, ...
+                        'ColorBy', colorby, 'CLim', [cmin cmax], 'Title', titleLabel);
     % Re-pin only the SIZE every frame (defensively) -- never the
     % on-screen location, which is left free for you to drag the
     % window around (e.g. to another monitor) while it renders.
@@ -84,5 +94,5 @@ for k = 1:numel(Sall)
 end
 
 close(v);
-fprintf('make_cross_section_video [%s=%.3g, %s]: wrote %s\n', cutaxis, cutvalue, colorby, outfile);
+fprintf('make_cross_section_video [%s]: wrote %s\n', colorby, outfile);
 end

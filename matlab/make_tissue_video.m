@@ -72,7 +72,7 @@ v.Quality = 90;
 open(v);
 
 for k = 1:numel(Sall)
-    plot_tissue_3d(Sall{k}, colorby, 'Figure', fig, 'CLim', [cmin cmax]);
+    plot_tissue_3d(Sall{k}, colorby, 'Figure', fig, 'CLim', [cmin cmax], 'Title', 'Whole tissue');
     % Re-pin only the SIZE every frame (defensively) -- never the
     % on-screen location, which is left free for you to drag the
     % window around (e.g. to another monitor) while it renders.

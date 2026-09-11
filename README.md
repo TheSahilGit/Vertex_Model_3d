@@ -161,13 +161,15 @@ There are two independent driver scripts:
   apical/basal/ambiguous breakdown), all against time, in one
   multi-panel figure.
 - **`main_movie.m`** reads the vertex `snap_<step>.dat` series and
-  renders ONE combined video: three side-by-side views of every
-  frame -- the whole tissue, a latitude ring, and a longitude ring --
-  all in one figure.
+  renders up to THREE independent videos, each its own figure/window:
+  the whole tissue, a latitude ring, and a longitude ring through a
+  chosen cell/location. The three are fully separate (no shared
+  figure), so each can be freely rotated/inspected on its own without
+  affecting the others.
 
 ```matlab
 main_analysis.m            % driver: diagnostics-vs-time plot (see below)
-main_movie.m               % driver: the combined 3-panel video (see below)
+main_movie.m               % driver: up to three independent videos (see below)
 read_vertex_snapshot.m     % read one binary vertex snapshot -> struct
 read_diagnostics.m         % read one binary diagnostics snapshot -> struct
 read_mesh_meta.m           % read data/mesh_meta.txt -> struct
@@ -186,14 +188,9 @@ plot_cross_section.m       % ring cross-section: hollow interior + individual
 ring_planes_for_location.m % a cell index or [x y z] point -> the latitude
                             % and longitude cutting planes through it
 make_tissue_video.m        % render a whole-tissue video across many snapshots
-make_cross_section_video.m % (same, for a single cross-section view)
-make_combined_video.m      % (same, for all three views side by side --
-                            % what main_movie.m actually uses)
+make_cross_section_video.m % (same, for a single cross-section view --
+                            % called once each for the latitude/longitude rings)
 ```
-
-Both `plot_tissue_3d.m` and `plot_cross_section.m` can draw into a
-caller-supplied `'Axes'` (one subplot of a bigger figure, used by
-`make_combined_video.m`) instead of always owning a whole figure.
 
 ```matlab
 S = read_vertex_snapshot('data/example/snap_00005000.dat');
@@ -201,8 +198,8 @@ plot_tissue_3d(S, 'nsides');       % or 'volume' / 'area'
 plot_cross_section(S, 'y', 0.0);   % legacy form: cut through the sphere centre
 
 [latPlane, lonPlane] = ring_planes_for_location(S, 7);   % cell 7's own location
-plot_cross_section(S, latPlane, 'ColorBy', 'volume');    % the latitude ring through it
-plot_cross_section(S, lonPlane, 'ColorBy', 'volume');    % the longitude ring through it
+plot_cross_section(S, latPlane, 'ColorBy', 'volume', 'Title', 'Latitude ring');
+plot_cross_section(S, lonPlane, 'ColorBy', 'volume', 'Title', 'Longitude ring');
 
 D = read_diagnostics('data/example/diag_00005000.dat');
 D.energy, D.lumen_volume, D.outer_area, D.max_force, D.n_cells, ...
@@ -221,15 +218,19 @@ produces something:
 ```matlab
 % from the project root
 run('matlab/main_analysis.m')   % diagnostics-vs-time figure
-run('matlab/main_movie.m')      % the combined 3-panel video
+run('matlab/main_movie.m')      % up to three independent videos
 ```
 
-A block of settings at the top of `main_movie.m` controls what it
-makes:
+A block of flags at the top of `main_movie.m` controls what it makes.
+`flag_tissue`/`flag_latitude`/`flag_longitude` are fully independent —
+run any subset, in any combination:
 
 ```matlab
-colorby = 'nsides';    % 'nsides' | 'volume' | 'area' -- shared colouring
-                        % for all three panels
+flag_tissue     = true;    % make the whole-tissue (outside) view
+flag_latitude   = true;    % make the latitude-ring cross-section view
+flag_longitude  = true;    % make the longitude-ring cross-section view
+
+colorby = 'nsides';    % 'nsides' | 'volume' | 'area' -- colouring for all three
 ref_location = 1;       % which cell/location the latitude and longitude
                         % rings are cut through -- EITHER a cell index
                         % (e.g. 1) OR an explicit [x y z] point (e.g.
@@ -247,34 +248,39 @@ see `ring_planes_for_location.m`: the latitude ring is the horizontal
 plane at the reference location's own height, the longitude ring is
 the vertical meridian plane through the poles and that location's own
 azimuthal angle. A reference point very close to a pole can end up
-with no cells straddling one of these planes at all (an empty panel,
-with a printed warning) -- pick a location further from the poles if
-that happens.
+with no cells straddling one of these planes at all (an empty plot,
+with a printed warning); and at coarse mesh resolutions, a latitude
+ring can legitimately come out with visible gaps between clusters of
+cells rather than one continuous loop -- a real property of exactly
+where that specific cut falls on a coarse icosahedral mesh, not a bug
+(the longitude ring through the same cell, or a finer mesh, is usually
+a clean unbroken loop).
 
 `video_its` is an array given directly in terms of the **saved
 iteration numbers** (the `it_dumps` cadence from `para.in`,
 not raw simulation steps or a plain file-list index) — e.g.
 `video_its = 1000:100:5000`. A scalar, e.g. `video_its = 5000`, works
 exactly like a 1-element array: the same code path still "makes the
-video", which in that case is just that one 3-panel plot. Leave it
-`[]` to use every available snapshot. A requested iteration that
-wasn't actually saved is matched to the nearest one that was, with a
-printed note.
+video", which in that case is just that one plot. Leave it `[]` to use
+every available snapshot. A requested iteration that wasn't actually
+saved is matched to the nearest one that was, with a printed note.
 
-The video is written to `videos/` (gitignored) as a `.avi` (`Motion
-JPEG AVI`, chosen because it — unlike `MPEG-4` — is supported by
-MATLAB on every platform, including Linux). `make_combined_video.m`
-reuses one figure (a fixed 1x3 tiled layout) for the whole run (left
-open on the last frame so you can look at it), pins it to an exact
-pixel *size* every frame (never its on-screen position, which is left
-free to drag around) and force-resizes any captured frame that still
-comes back a different size before handing it to `VideoWriter`, since
-`writeVideo` errors out on the first size mismatch (e.g. a colorbar
-tick label gaining a digit can shift the rendered axes by a pixel) —
-otherwise a good chunk of frames into a long video.
-`make_tissue_video.m`/`make_cross_section_video.m` (a single view, the
-older/simpler entry points `make_combined_video.m` is built from) are
-still available for standalone use the same way.
+Videos are written to `videos/` (gitignored) as `.avi` (`Motion JPEG
+AVI`, chosen because it — unlike `MPEG-4` — is supported by MATLAB on
+every platform, including Linux). `make_tissue_video.m`/
+`make_cross_section_video.m` reuse one figure for their whole run
+(left open on the last frame so you can look at it), pin it to an
+exact pixel *size* every frame (never its on-screen position, which is
+left free to drag around) and force-resize any captured frame that
+still comes back a different size before handing it to `VideoWriter`,
+since `writeVideo` errors out on the first size mismatch (e.g. a
+colorbar tick label gaining a digit can shift the rendered axes by a
+pixel) — otherwise a good chunk of frames into a long video. With more
+than one flag on, the videos are made one after another, not at the
+same time: this MATLAB install is licensed for Parallel Computing
+Toolbox but does not actually have it installed (checked directly --
+`parpool`/`gcp` are undefined here), so there is no way to run them
+concurrently within one MATLAB session.
 
 ## Sanity checks built in
 
