@@ -15,6 +15,13 @@ function fig = plot_tissue_3d(S, colorby, varargin)
 %       size (required by VideoWriter) and a constant, comparable
 %       colour scale across frames.
 %
+%   plot_tissue_3d(..., 'Axes', ax, 'CLim', [cmin cmax])
+%       Draw into an existing AXES (cleared first, e.g. one subplot of
+%       a larger figure) instead of owning a whole figure -- used by
+%       make_combined_video.m to place this view alongside the
+%       cross-section ring views in one figure. Takes precedence over
+%       'Figure' if both are given.
+%
 % S is a struct from read_vertex_snapshot.m.
 
 if nargin < 2 || isempty(colorby)
@@ -22,9 +29,11 @@ if nargin < 2 || isempty(colorby)
 end
 p = inputParser;
 p.addParameter('Figure', []);
+p.addParameter('Axes', []);
 p.addParameter('CLim', []);
 p.parse(varargin{:});
 fig_in  = p.Results.Figure;
+ax_in   = p.Results.Axes;
 clim_in = p.Results.CLim;
 
 FONT_SIZE   = 26;  % ~2.5x the MATLAB default (10), per user request
@@ -33,19 +42,25 @@ TITLE_SIZE  = 30;
 F = cell_faces_matrix(S);
 [cval, cblabel] = tissue_color_values(S, colorby);
 
-if isempty(fig_in)
-    fig = figure('Color', 'w');
+if ~isempty(ax_in)
+    ax = ax_in;
+    cla(ax);
+    fig = ancestor(ax, 'figure');
 else
-    fig = fig_in;
-    figure(fig);
-    clf(fig);
+    if isempty(fig_in)
+        fig = figure('Color', 'w');
+    else
+        fig = fig_in;
+        figure(fig);
+        clf(fig);
+    end
+    ax = axes(fig);
 end
 
-patch('Faces', F, 'Vertices', S.r_api, ...
+patch(ax, 'Faces', F, 'Vertices', S.r_api, ...
       'FaceVertexCData', cval, 'FaceColor', 'flat', ...
       'EdgeColor', [0.15 0.15 0.15], 'LineWidth', 0.5);
 
-ax = gca;
 axis(ax, 'equal'); axis(ax, 'off');
 
 % Pin the axes to a FIXED reference frame (the apical radius at
@@ -66,18 +81,18 @@ R = S.R_apical * 1.05;
 xlim(ax, [-R R]); ylim(ax, [-R R]); zlim(ax, [-R R]);
 
 view(ax, 35, 20)
-camlight('headlight'); lighting gouraud; material dull
-colormap(parula)
+camlight(ax, 'headlight'); lighting(ax, 'gouraud'); material(ax, 'dull')
+colormap(ax, parula)
 
 if isempty(clim_in)
     if max(cval) > min(cval)
-        clim([min(cval), max(cval)]);
+        clim(ax, [min(cval), max(cval)]);
     end
 else
-    clim(clim_in);
+    clim(ax, clim_in);
 end
 
-cb = colorbar;
+cb = colorbar(ax);
 cb.Label.String = cblabel;
 cb.FontSize = FONT_SIZE;
 ax.FontSize = FONT_SIZE;
@@ -85,12 +100,17 @@ ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured 
 
 % colorbar() auto-shrinks the axes to make room for itself based on
 % the CURRENT tick labels' width (e.g. "6" vs "-0.07" need different
-% widths); fix both explicitly (normalized units) so the rendered
-% sphere sits in the exact same box on every frame regardless of that.
-ax.Units = 'normalized';
-ax.Position = [0.03 0.06 0.72 0.88];
-cb.Units = 'normalized';
-cb.Position = [0.80 0.12 0.045 0.76];
+% widths); when this view owns the whole figure (no Axes given), fix
+% both explicitly (normalized units) so the rendered sphere sits in
+% the exact same box on every frame regardless of that. When drawing
+% into a caller-supplied Axes (a subplot of a bigger figure), leave
+% the caller's own subplot layout alone instead.
+if isempty(ax_in)
+    ax.Units = 'normalized';
+    ax.Position = [0.03 0.06 0.72 0.88];
+    cb.Units = 'normalized';
+    cb.Position = [0.80 0.12 0.045 0.76];
+end
 
 % NOW freeze the camera zoom (CameraViewAngle), i.e. what 'axis vis3d'
 % would do -- but only AFTER the axes has its final Position, not

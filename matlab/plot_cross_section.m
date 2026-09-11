@@ -1,47 +1,81 @@
-function fig = plot_cross_section(S, cutaxis, cutvalue, varargin)
+function fig = plot_cross_section(S, plane, varargin)
 % PLOT_CROSS_SECTION  A single RING of cells -- the ones whose apical
-% polygon straddles the cutting plane {cutaxis = cutvalue} -- rendered
-% as complete polyhedra (apical + lateral + basal faces, all edges
-% visible), each cell coloured as one solid colour by a per-cell metric
-% (like plot_tissue_3d.m) so individual cells are easy to tell apart,
-% and viewed face-on to the cutting plane. Even though it's a genuine
-% 3D structure, viewed this way it reads almost as a flat 2D strip of
+% polygon straddles a cutting plane -- rendered as complete polyhedra
+% (apical + lateral + basal faces, all edges visible), each cell
+% coloured as one solid colour by a per-cell metric (like
+% plot_tissue_3d.m) so individual cells are easy to tell apart, and
+% viewed face-on to the cutting plane. Even though it's a genuine 3D
+% structure, viewed this way it reads almost as a flat 2D strip of
 % polygons: exactly the ring of cells a physical cut through the
 % tissue would reveal, without the foreshortening/distortion of
 % rendering the whole 3D shell from an oblique angle.
 %
-%   plot_cross_section(S)                  % cut at y = 0, colour by volume
-%   plot_cross_section(S, 'z', 2.0)        % cut at z = 2.0
-%   plot_cross_section(S, 'y', 0, 'ColorBy', 'nsides')
-%   plot_cross_section(S, 'y', 0, 'Figure', fig, 'CLim', [cmin cmax])
+% PLANE identifies the cutting plane, in either of two forms:
+%
+%   plot_cross_section(S, 'y', 0)          % legacy form: cutaxis/cutvalue,
+%                                           % 'x'|'y'|'z' plus a scalar --
+%                                           % the plane {axis = value}
+%   plot_cross_section(S, planeStruct)     % general form: a struct with
+%                                           % .normal (3x1) and .point (3x1),
+%                                           % the plane {r : dot(r-point,normal)=0}
+%                                           % -- e.g. from ring_planes_for_location.m,
+%                                           % for a plane at an arbitrary angle
+%                                           % (not just axis-aligned)
+%
+%   plot_cross_section(S)                        % cut at y = 0, colour by volume
+%   plot_cross_section(S, 'z', 2.0)              % cut at z = 2.0
+%   plot_cross_section(S, latPlane, 'ColorBy', 'nsides')
+%   plot_cross_section(S, lonPlane, 'Figure', fig, 'CLim', [cmin cmax])
 %       draw into an existing figure (cleared first), with a fixed
 %       colour range instead of auto-scaling to this frame's data --
 %       used by make_cross_section_video.m for a constant window/frame
 %       size and a constant colour scale across a whole video.
+%   plot_cross_section(S, latPlane, 'Axes', ax, 'CLim', [cmin cmax])
+%       draw into an existing AXES (e.g. one subplot of a bigger
+%       figure) instead of owning a whole figure -- used by
+%       make_combined_video.m. Takes precedence over 'Figure'.
 %
 % S is a struct from read_vertex_snapshot.m.
 
-if nargin < 2 || isempty(cutaxis),  cutaxis  = 'y'; end
-if nargin < 3 || isempty(cutvalue), cutvalue = 0.0; end
+if nargin < 2 || isempty(plane), plane = 'y'; end
+
+% ---- resolve PLANE into a unit normal + a point on the plane ----
+if ischar(plane) || isstring(plane)
+    cutaxis = char(plane);
+    if nargin < 3 || isempty(varargin) || ~isnumeric(varargin{1})
+        cutvalue = 0.0;
+        rest = varargin;
+    else
+        cutvalue = varargin{1};
+        rest = varargin(2:end);
+    end
+    switch lower(cutaxis)
+        case 'x', planeNormal = [1;0;0];
+        case 'y', planeNormal = [0;1;0];
+        case 'z', planeNormal = [0;0;1];
+        otherwise
+            error('plot_cross_section:cutaxis', 'cutaxis must be ''x'', ''y'' or ''z''');
+    end
+    planePoint = planeNormal * cutvalue;
+else
+    planeNormal = plane.normal(:) / norm(plane.normal);
+    planePoint  = plane.point(:);
+    rest = varargin;
+end
+
 p = inputParser;
 p.addParameter('Figure', []);
+p.addParameter('Axes', []);
 p.addParameter('ColorBy', 'volume');
 p.addParameter('CLim', []);
-p.parse(varargin{:});
+p.parse(rest{:});
 fig_in   = p.Results.Figure;
+ax_in    = p.Results.Axes;
 colorby  = p.Results.ColorBy;
 clim_in  = p.Results.CLim;
 
 FONT_SIZE  = 26;
 TITLE_SIZE = 30;
-
-switch lower(cutaxis)
-    case 'x', axcol = 1;
-    case 'y', axcol = 2;
-    case 'z', axcol = 3;
-    otherwise
-        error('plot_cross_section:cutaxis', 'cutaxis must be ''x'', ''y'' or ''z''');
-end
 
 % ---- per-cell colour value for every alive cell (same definition as
 % plot_tissue_3d.m), looked up per ring cell below ----
@@ -57,7 +91,7 @@ for ii = 1:numel(idx_alive)
     ic = idx_alive(ii);
     n = S.cell_n(ic);
     vids = S.cell_vlist(ic, 1:n);
-    d = S.r_api(vids, axcol) - cutvalue;
+    d = (S.r_api(vids, :) - planePoint') * planeNormal;
     if any(d > 0) && any(d < 0)
         nring = nring + 1;
         ring_idx(nring) = ic;
@@ -67,7 +101,7 @@ ring_idx = ring_idx(1:nring);
 
 if nring == 0
     warning('plot_cross_section:noring', ...
-        'No cells straddle %s = %.3g; nothing to plot.', cutaxis, cutvalue);
+        'No cells straddle the requested plane; nothing to plot.');
 end
 
 % ---- explicit triangles for every face (apical/basal fans from each
@@ -140,32 +174,38 @@ end
 
 combinedV = [S.r_api; S.r_bas; apiCentroids; basCentroids];
 
-if isempty(fig_in)
-    fig = figure('Color', 'w');
+if ~isempty(ax_in)
+    ax = ax_in;
+    cla(ax);
+    fig = ancestor(ax, 'figure');
 else
-    fig = fig_in;
-    figure(fig);
-    clf(fig);
+    if isempty(fig_in)
+        fig = figure('Color', 'w');
+    else
+        fig = fig_in;
+        figure(fig);
+        clf(fig);
+    end
+    ax = axes(fig);
 end
 
-patch('Faces', Tapi, 'Vertices', combinedV, 'FaceVertexCData', Capi, 'FaceColor', 'flat', 'EdgeColor', 'none');
-hold on
-patch('Faces', Tbas, 'Vertices', combinedV, 'FaceVertexCData', Cbas, 'FaceColor', 'flat', 'EdgeColor', 'none');
-patch('Faces', Tlat, 'Vertices', combinedV, 'FaceVertexCData', Clat, 'FaceColor', 'flat', 'EdgeColor', 'none');
-plot3(edge_x, edge_y, edge_z, 'Color', [0.05 0.05 0.05], 'LineWidth', 1.2);
+patch(ax, 'Faces', Tapi, 'Vertices', combinedV, 'FaceVertexCData', Capi, 'FaceColor', 'flat', 'EdgeColor', 'none');
+hold(ax, 'on')
+patch(ax, 'Faces', Tbas, 'Vertices', combinedV, 'FaceVertexCData', Cbas, 'FaceColor', 'flat', 'EdgeColor', 'none');
+patch(ax, 'Faces', Tlat, 'Vertices', combinedV, 'FaceVertexCData', Clat, 'FaceColor', 'flat', 'EdgeColor', 'none');
+plot3(ax, edge_x, edge_y, edge_z, 'Color', [0.05 0.05 0.05], 'LineWidth', 1.2);
 
-ax = gca;
 axis(ax, 'equal'); axis(ax, 'off');
 
-colormap(parula)
+colormap(ax, parula)
 if isempty(clim_in)
     if max(cval_alive) > min(cval_alive)
-        clim([min(cval_alive), max(cval_alive)]);
+        clim(ax, [min(cval_alive), max(cval_alive)]);
     end
 else
-    clim(clim_in);
+    clim(ax, clim_in);
 end
-cb = colorbar;
+cb = colorbar(ax);
 cb.Label.String = cblabel;
 cb.FontSize = FONT_SIZE;
 
@@ -174,22 +214,41 @@ cb.FontSize = FONT_SIZE;
 % auto-zoom from re-fitting to the tissue's own (genuinely, slowly
 % shrinking) size, which otherwise showed up as an occasional sudden
 % jump in rendered size partway through an otherwise perfectly smooth
-% video.
+% video. (This box just keeps the DATA limits fixed; the actual
+% on-screen framing below is set explicitly and does not depend on it.)
 R = S.R_apical * 1.05;
 xlim(ax, [-R R]); ylim(ax, [-R R]); zlim(ax, [-R R]);
 
-% Face-on to the cutting plane: the ring is a thin band straddling
-% {cutaxis = cutvalue}, so viewed along that axis it reads as a flat
-% annulus of polygons rather than a 3D ball. Fixed once per call, same
-% for every frame of a video -- the cutting axis/value are chosen once
-% up front (in main_analysis.m) and never change frame to frame.
-switch axcol
-    case 1, view(ax, 90, 0);   % looking along x
-    case 2, view(ax, 0, 0);    % looking along y
-    case 3, view(ax, 0, 90);   % looking along z (straight down)
+% Face-on to the cutting plane, with an on-screen framing that stays
+% CONSISTENT regardless of which direction planeNormal happens to
+% point. view(ax, v) alone would auto-fit the camera distance/angle to
+% whatever the fixed [-R,R]^3 axis box's SILHOUETTE looks like from
+% that specific direction -- and that silhouette is wider when viewed
+% along an oblique in-plane direction (e.g. a longitude ring at an
+% arbitrary azimuthal angle, up to R*sqrt(2) across) than dead-on
+% along a coordinate axis (e.g. the latitude ring, looking straight
+% down z, exactly R across) -- so two rings of the SAME physical
+% radius R would render at visibly different on-screen sizes purely
+% because of their different cut orientation. Setting camera position/
+% target/view-angle explicitly (a fixed distance and view angle
+% computed from R alone, independent of direction) removes that
+% dependence: every ring, whatever its cutting plane, fills the same
+% fraction of its panel.
+camdist = 4 * S.R_apical;
+camtarget(ax, [0 0 0]);
+campos(ax, planeNormal' * camdist);
+upvec = [0 0 1];
+if abs(dot(upvec, planeNormal)) > 0.9
+    upvec = [0 1 0];   % avoid a degenerate/near-parallel up vector when
+                        % looking nearly straight down the polar axis
 end
+camup(ax, upvec);
+camva(ax, 2 * atand(R / camdist));
 
-camlight('headlight'); lighting gouraud; material dull
+camlight(ax, 'headlight'); lighting(ax, 'gouraud'); material(ax, 'dull')
+ax.CameraPositionMode  = 'manual';
+ax.CameraTargetMode    = 'manual';
+ax.CameraUpVectorMode  = 'manual';
 ax.CameraViewAngleMode = 'manual';  % freeze zoom AFTER Position/limits are final
 ax.FontSize = FONT_SIZE;
 ax.Toolbar.Visible = 'on';  % 'off' to avoid it showing up in exported/captured frames

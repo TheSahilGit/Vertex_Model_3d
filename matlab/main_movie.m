@@ -1,21 +1,13 @@
 % main_movie.m
 % Driver: reads the tissue snapshots written by the Fortran code into
 % data/ (falling back to the bundled data/example/ if none are found)
-% and makes the whole-tissue (outside) view and/or the cross-section
-% (ring) view, independently controlled by flag_tissue/
-% flag_cross_section below -- run either one alone, or both. There is
-% no true concurrency between them (this MATLAB install has no
-% Parallel Computing Toolbox, so real parallel figure rendering isn't
-% practical here): with both flags on they still run one after the
-% other in this one script, but each is now independent -- turning
-% tissue off means cross-section starts immediately, with no wait on a
-% video you didn't ask for.
-%
-% Both go through the SAME video-making code path regardless of how
-% many snapshots are selected: given an array of many timesteps it
-% writes a real video; given an array of exactly one timestep it still
-% "makes the video", which in that case is just that one plot, saved
-% the same way.
+% and makes ONE combined video (make_combined_video.m) with three
+% side-by-side views of every frame, all in one figure:
+%   1. the whole tissue (outside view)
+%   2. the LATITUDE ring through a chosen cell/location
+%   3. the LONGITUDE ring through that same cell/location
+% (see ring_planes_for_location.m for what "latitude"/"longitude" mean
+% here: z is treated as the polar axis by convention).
 %
 % This script locates itself (rather than relying on the current
 % working directory, which e.g. MATLAB's run() changes to the script's
@@ -28,31 +20,34 @@ project_root = fileparts(this_dir);               % one level up
 data_dir     = fullfile(project_root, 'data');
 addpath(this_dir);
 
-%% ---------------- user-configurable flags -----------------------------
-flag_tissue        = true;           % make the whole-tissue (outside) view
-flag_cross_section = true;          % make the cross-section (ring) view
-                                      % (independent of flag_tissue -- run
-                                      % either one alone, or both)
+%% ---------------- user-configurable settings ---------------------------
+colorby = 'nsides';                  % 'nsides' | 'volume' | 'area' -- shared
+                                      % colouring for all three panels
 
-colorby = 'nsides';                  % 'nsides' | 'volume' | 'area' -- tissue colouring
-
-cut_axis  = 'y';                     % cross-section cutting axis: 'x' | 'y' | 'z'
-cut_value = 0.0;                     % cross-section cutting plane offset
+ref_location = 1;                    % which cell/location the latitude and
+                                      % longitude rings are cut through --
+                                      % EITHER a cell index (e.g. 1) OR an
+                                      % explicit [x y z] point (e.g.
+                                      % [5 0 9]). Resolved once, from the
+                                      % FIRST selected frame, into two
+                                      % fixed cutting planes reused for
+                                      % every later frame (see
+                                      % ring_planes_for_location.m).
 
 % Which saved snapshots go into the video, given directly as an array
 % of SAVED iteration numbers (the it_dumps cadence) -- not raw
 % simulation steps, not a plain index into the file list. A scalar
 % (a single iteration) works exactly like a 1-element array: the same
 % code path still "makes the video", which in that case is just a
-% single plot. Leave empty ([]) to use every available snapshot.
+% single (3-panel) plot. Leave empty ([]) to use every available snapshot.
 %
 %   video_its = 1000:100:5000;   % that whole range
 %   video_its = 5000;            % just one snapshot -> a single plot
 %   video_its = [];               % every saved snapshot
 
-video_its = 100000
+video_its = 100:100:10000;
 
-video_fps = 4;                     % frames per second for saved videos
+video_fps = 4;                     % frames per second for the saved video
 video_dir = fullfile(project_root, 'videos');
 %% ------------------------------------------------------------------------
 
@@ -81,16 +76,5 @@ if ~exist(video_dir, 'dir')
     mkdir(video_dir);
 end
 
-if ~flag_tissue && ~flag_cross_section
-    warning('main_movie:nothingtodo', 'Both flag_tissue and flag_cross_section are off -- nothing to do.');
-end
-
-if flag_tissue
-    outfile = fullfile(video_dir, sprintf('tissue_%s.avi', colorby));
-    make_tissue_video(video_files, colorby, outfile, video_fps);
-end
-
-if flag_cross_section
-    outfile = fullfile(video_dir, sprintf('cross_section_%s_%s.avi', cut_axis, colorby));
-    make_cross_section_video(video_files, cut_axis, cut_value, outfile, video_fps, colorby);
-end
+outfile = fullfile(video_dir, sprintf('combined_%s.avi', colorby));
+make_combined_video(video_files, ref_location, colorby, outfile, video_fps);
