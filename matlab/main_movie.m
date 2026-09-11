@@ -24,7 +24,7 @@ addpath(this_dir);
 colorby = 'nsides';                  % 'nsides' | 'volume' | 'area' -- shared
                                       % colouring for all three panels
 
-ref_location = 1;                    % which cell/location the latitude and
+ref_location = 10;                    % which cell/location the latitude and
                                       % longitude rings are cut through --
                                       % EITHER a cell index (e.g. 1) OR an
                                       % explicit [x y z] point (e.g.
@@ -45,7 +45,7 @@ ref_location = 1;                    % which cell/location the latitude and
 %   video_its = 5000;            % just one snapshot -> a single plot
 %   video_its = [];               % every saved snapshot
 
-video_its = 100:100:10000;
+video_its =10000;
 
 video_fps = 4;                     % frames per second for the saved video
 video_dir = fullfile(project_root, 'videos');

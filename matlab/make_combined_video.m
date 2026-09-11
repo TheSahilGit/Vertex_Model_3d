@@ -45,7 +45,7 @@ if nargin < 5 || isempty(fps)
     fps = 8;
 end
 
-FRAME_W = 2700;
+FRAME_W = 1800;
 FRAME_H = 900;
 
 fprintf('make_combined_video [%s]: reading %d snapshots...\n', colorby, numel(files));
@@ -78,6 +78,22 @@ PANEL_TITLE_SIZE = 20;  % the individual plot functions already set their
 ax_tissue = nexttile(tl, 1);
 ax_lat    = nexttile(tl, 2);
 ax_lon    = nexttile(tl, 3);
+all_axes  = [ax_tissue, ax_lat, ax_lon];
+
+% By default, MATLAB's interactive Rotate-3D tool rotates EVERY 3-D axes
+% in the figure together, as one -- fine for a single view, but wrong
+% here: dragging in just one of the three panels (e.g. after this runs
+% and the figure is left open on the last frame) would otherwise spin
+% all three in lockstep. setAllowAxesRotate restricts a rotate3d object
+% to a chosen set of axes; ActionPreCallback fires right as a drag
+% starts and is given which axes was actually clicked (event.Axes), so
+% it can re-narrow that restriction to just that one axes each time,
+% before the drag's own rotation is applied -- the standard fix for
+% multiple independent 3-D subplots in one figure.
+rot = rotate3d(fig);
+rot.Enable = 'on';
+rot.ActionPreCallback = @(~, event) setAllowAxesRotate(rot, setdiff(all_axes, event.Axes), false);
+rot.ActionPostCallback = @(~, ~) setAllowAxesRotate(rot, all_axes, true);
 
 v = VideoWriter(outfile, 'Motion JPEG AVI');
 v.FrameRate = fps;
