@@ -22,6 +22,13 @@ function D = read_diagnostics(fname)
 %   D.cumulative_T4_apical     of which classified apical-ward
 %   D.cumulative_T4_basal      of which classified basal-ward
 %   D.cumulative_T4_ambiguous  of which too close to call (see T4_direction_deadband)
+%   D.n_defect_seeded          total cells seeded low-adhesion/defect at t=0
+%                              (0 if defect_enable=.false.; see mod_defect.f90)
+%   D.n_defect_alive           of those, how many are still alive right now
+%   D.cumulative_T4_defect            of cumulative_T4, how many were seeded defect cells
+%   D.cumulative_T4_defect_apical     of which classified apical-ward
+%   D.cumulative_T4_defect_basal      of which classified basal-ward
+%   D.cumulative_T4_defect_ambiguous  of which too close to call
 
 fid = fopen(fname, 'r', 'ieee-le');
 if fid < 0
@@ -42,4 +49,10 @@ D.cumulative_T4           = fread(fid, 1, 'int32');
 D.cumulative_T4_apical    = fread(fid, 1, 'int32');
 D.cumulative_T4_basal     = fread(fid, 1, 'int32');
 D.cumulative_T4_ambiguous = fread(fid, 1, 'int32');
+D.n_defect_seeded = fread(fid, 1, 'int32');
+D.n_defect_alive  = fread(fid, 1, 'int32');
+D.cumulative_T4_defect           = fread(fid, 1, 'int32');
+D.cumulative_T4_defect_apical    = fread(fid, 1, 'int32');
+D.cumulative_T4_defect_basal     = fread(fid, 1, 'int32');
+D.cumulative_T4_defect_ambiguous = fread(fid, 1, 'int32');
 end
